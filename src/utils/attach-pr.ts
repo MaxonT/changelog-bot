@@ -48,7 +48,7 @@ type FenceMarker = {
  * @param line Markdown line to inspect.
  */
 function matchFenceDelimiter(line: string): FenceMarker | undefined {
-  const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+  const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/);
   if (!fenceMatch) return undefined;
   const fenceText = fenceMatch[1];
   return { character: fenceText[0] as '`' | '~', length: fenceText.length };
@@ -56,16 +56,19 @@ function matchFenceDelimiter(line: string): FenceMarker | undefined {
 
 /**
  * Check whether a line closes the currently open fenced code block.
- * The closing fence must reuse the opening character and be at least as long.
+ * The closing fence must reuse the opening character, be at least as long,
+ * and contain only spaces or tabs after the delimiter.
  * @param line Markdown line to inspect.
  * @param openFence Fence opened earlier in the document.
  */
 function closesFence(line: string, openFence: FenceMarker): boolean {
-  const fenceMatch = matchFenceDelimiter(line);
+  // WHY: An opening fence may have an info string, but a closing fence may not.
+  // The optional carriage return belongs to a CRLF line ending, not the fence.
+  const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*\r?$/);
   if (!fenceMatch) return false;
+  const fenceText = fenceMatch[1];
   return (
-    fenceMatch.character === openFence.character &&
-    fenceMatch.length >= openFence.length
+    fenceText[0] === openFence.character && fenceText.length >= openFence.length
   );
 }
 
@@ -124,7 +127,11 @@ export function attachPrNumbers(
     if (!isBulletLine(line) || !/^[-*]\s+/.test(line)) return line;
     if (hasInlinePrReference(line)) return line;
 
-    const bulletParts = splitBulletLine(line);
+    // WHY: Split on LF without losing CRLF when a bullet is updated.
+    const carriageReturn = line.endsWith('\r') ? '\r' : '';
+    const bulletParts = splitBulletLine(
+      carriageReturn ? line.slice(0, -1) : line,
+    );
     if (!bulletParts) return line;
 
     const matchedPrNumber = findTitleMatch(bulletParts.text, titleLookup);
@@ -133,9 +140,9 @@ export function attachPrNumbers(
 
     if (repo) {
       const url = `https://github.com/${repo.owner}/${repo.repo}/pull/${matchedPrNumber}`;
-      return `${bulletParts.prefix}${bulletParts.text} in [#${matchedPrNumber}](${url})`;
+      return `${bulletParts.prefix}${bulletParts.text} in [#${matchedPrNumber}](${url})${carriageReturn}`;
     }
-    return `${bulletParts.prefix}${bulletParts.text} (#${matchedPrNumber})`;
+    return `${bulletParts.prefix}${bulletParts.text} (#${matchedPrNumber})${carriageReturn}`;
   });
   return updated.join('\n');
 }

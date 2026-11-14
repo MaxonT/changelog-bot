@@ -121,4 +121,99 @@ describe('attachPrNumbers', () => {
     expect(lines[2]).toBe('- Add feature');
     expect(lines[4]).toBe('- Add feature (#42)');
   });
+
+  test.each(['```', '~~~'])(
+    'does not close a %s fence when text follows the delimiter',
+    (fence) => {
+      const lines = [
+        `${fence}md`,
+        `${fence}not-a-closing-fence`,
+        '- Add feature',
+        `${fence} \tstill-not-a-closing-fence`,
+        '- Add feature',
+        fence,
+        '- Add feature',
+        '',
+      ];
+      const expected = [...lines];
+      expected[6] = '- Add feature (#42)';
+
+      expect(attachPrNumbers(lines.join('\n'), { 'Add feature': 42 })).toBe(
+        expected.join('\n'),
+      );
+    },
+  );
+
+  test.each(['```', '~~~'])(
+    'allows longer %s closing fences with spaces and tabs',
+    (fence) => {
+      const lines = [
+        `   ${fence}md`,
+        '- Add feature',
+        `  ${fence}${fence} \t`,
+        '- Add feature',
+        '',
+      ];
+      const expected = [...lines];
+      expected[3] = '- Add feature (#42)';
+
+      expect(attachPrNumbers(lines.join('\n'), { 'Add feature': 42 })).toBe(
+        expected.join('\n'),
+      );
+    },
+  );
+
+  test.each(['    ```', '\t```', '\u00a0```', '```\u00a0'])(
+    'does not close a fence with invalid whitespace: %s',
+    (invalidFence) => {
+      const lines = [
+        '```',
+        invalidFence,
+        '- Add feature',
+        '```',
+        '- Add feature',
+      ];
+      const expected = [...lines];
+      expected[4] = '- Add feature (#42)';
+
+      expect(attachPrNumbers(lines.join('\n'), { 'Add feature': 42 })).toBe(
+        expected.join('\n'),
+      );
+    },
+  );
+
+  test.each(['    ```', '\t```', '\u00a0```'])(
+    'does not open a fence with invalid indentation: %s',
+    (invalidFence) => {
+      const md = [invalidFence, '- Add feature', ''].join('\n');
+      const expected = [invalidFence, '- Add feature (#42)', ''].join('\n');
+
+      expect(attachPrNumbers(md, { 'Add feature': 42 })).toBe(expected);
+    },
+  );
+
+  test.each([undefined, { owner: 'octo', repo: 'repo' }])(
+    'preserves CRLF around fenced blocks and linked bullets with repo %p',
+    (repo) => {
+      const lines = [
+        '- Add feature',
+        '```text',
+        '```not-a-closing-fence',
+        '- Add feature',
+        '   ```` \t',
+        '- Add feature',
+        '',
+      ];
+      const expected = [...lines];
+      const linkedBullet = repo
+        ? '- Add feature in [#42](https://github.com/octo/repo/pull/42)'
+        : '- Add feature (#42)';
+      expected[0] = linkedBullet;
+      expected[5] = linkedBullet;
+
+      expect(
+        attachPrNumbers(lines.join('\r\n'), { 'Add feature': 42 }, repo),
+      ).toBe(expected.join('\r\n'));
+    },
+  );
 });
