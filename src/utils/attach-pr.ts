@@ -2,6 +2,7 @@
 // conventional commit prefix (with optional scope) to compare plain subjects.
 import { isBulletLine } from '@/utils/is.js';
 import { INLINE_PR_PRESENT_RE } from '@/constants/conventional.js';
+import { CLOSING_FENCE_RE, OPENING_FENCE_RE } from '@/constants/markdown.js';
 import { buildTitleLookup, findTitleMatch } from '@/utils/title-lookup.js';
 
 /** Maps original PR titles to their numeric identifiers. */
@@ -48,10 +49,14 @@ type FenceMarker = {
  * @param line Markdown line to inspect.
  */
 function matchFenceDelimiter(line: string): FenceMarker | undefined {
-  const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/);
+  const fenceMatch = line.match(OPENING_FENCE_RE);
   if (!fenceMatch) return undefined;
-  const fenceText = fenceMatch[1];
-  return { character: fenceText[0] as '`' | '~', length: fenceText.length };
+  const [, fenceText, infoString] = fenceMatch;
+  const character = fenceText[0];
+  if (character !== '`' && character !== '~') return undefined;
+  // WHY: CommonMark permits backticks in tilde fence info strings only.
+  if (character === '`' && infoString.includes('`')) return undefined;
+  return { character, length: fenceText.length };
 }
 
 /**
@@ -64,7 +69,7 @@ function matchFenceDelimiter(line: string): FenceMarker | undefined {
 function closesFence(line: string, openFence: FenceMarker): boolean {
   // WHY: An opening fence may have an info string, but a closing fence may not.
   // The optional carriage return belongs to a CRLF line ending, not the fence.
-  const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*\r?$/);
+  const fenceMatch = line.match(CLOSING_FENCE_RE);
   if (!fenceMatch) return false;
   const fenceText = fenceMatch[1];
   return (

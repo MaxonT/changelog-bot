@@ -122,6 +122,27 @@ describe('attachPrNumbers', () => {
     expect(lines[4]).toBe('- Add feature (#42)');
   });
 
+  test.each(['\n', '\r\n'])(
+    'does not open a backtick fence with backticks in the info string (%j)',
+    (lineEnding) => {
+      const lines = ['```inline code```', '', '- Add feature', ''];
+      const expected = [lines[0], '', '- Add feature (#42)', ''];
+      expect(
+        attachPrNumbers(lines.join(lineEnding), { 'Add feature': 42 }),
+      ).toBe(expected.join(lineEnding));
+    },
+  );
+
+  test('allows backticks in the info string of a tilde fence', () => {
+    const lines = ['~~~md `example`', '- Add feature', '~~~', '- Add feature'];
+    const expected = [...lines];
+    expected[3] = '- Add feature (#42)';
+
+    expect(attachPrNumbers(lines.join('\n'), { 'Add feature': 42 })).toBe(
+      expected.join('\n'),
+    );
+  });
+
   test.each(['```', '~~~'])(
     'does not close a %s fence when text follows the delimiter',
     (fence) => {
