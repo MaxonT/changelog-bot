@@ -40,3 +40,45 @@ test('adds Unreleased link when absent and avoids duplicates', () => {
 
   expect(matches.length).toBe(1);
 });
+
+test('does not duplicate a version compare link on repeated updates', () => {
+  const existing = '# Changelog\n';
+  const compareLine = '[v1.2.3]: https://example.com/compare/v1.2.2...v1.2.3';
+
+  const updatedOnce = updateCompareLinks(existing, compareLine);
+  const updatedTwice = updateCompareLinks(updatedOnce, compareLine);
+
+  expect(updatedTwice).toBe(updatedOnce);
+  expect(updatedTwice.match(/^\[v1\.2\.3\]: .+$/gm)).toEqual([compareLine]);
+});
+
+test('preserves an existing identical version compare link', () => {
+  const compareLine = '[v1.2.3]: https://example.com/compare/v1.2.2...v1.2.3';
+  const existing = `# Changelog\n\n${compareLine}\n`;
+
+  const updatedContent = updateCompareLinks(existing, compareLine);
+
+  expect(updatedContent).toBe(existing);
+});
+
+test('does not duplicate a version compare link with trailing whitespace', () => {
+  const compareLine = '[v1.2.3]: https://example.com/compare/v1.2.2...v1.2.3';
+  const existing = `# Changelog\n\n${compareLine} \t\n`;
+
+  const updatedContent = updateCompareLinks(existing, compareLine);
+
+  expect(updatedContent).toBe(existing);
+});
+
+test('preserves unrelated compare links when adding a version compare link', () => {
+  const previousCompareLines = [
+    '[v1.2.1]: https://example.com/compare/v1.2.0...v1.2.1',
+    '[v1.2.2]: https://example.com/compare/v1.2.1...v1.2.2',
+  ].join('\n');
+  const existing = `# Changelog\n\n${previousCompareLines}\n`;
+  const compareLine = '[v1.2.3]: https://example.com/compare/v1.2.2...v1.2.3';
+
+  const updatedContent = updateCompareLinks(existing, compareLine);
+
+  expect(updatedContent).toBe(`${existing}\n${compareLine}\n`);
+});
