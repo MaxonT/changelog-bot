@@ -1,5 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
 import { buildTitleLookup, findTitleMatch } from '@/utils/title-lookup.js';
+import type { TitleLookupCollision } from '@/utils/title-lookup.js';
 
 describe('title-lookup utils', () => {
   test('matches direct titles after stripping conventional prefixes', () => {
@@ -67,12 +68,7 @@ describe('title-lookup utils', () => {
   });
 
   test('passes the collision context to the resolver', () => {
-    const collisions: Array<{
-      title: string;
-      normalizedTitle: string;
-      existingValue: string;
-      incomingValue: string;
-    }> = [];
+    const collisions: TitleLookupCollision<string>[] = [];
 
     buildTitleLookup(
       [
@@ -108,20 +104,18 @@ describe('title-lookup utils', () => {
     expect(findTitleMatch('Add login flow', lookup)).toBe('normalized-first');
   });
 
-  test('treats capitalization and punctuation variants consistently', () => {
+  test.each([
+    'Add login flow',
+    'ADD LOGIN FLOW',
+    'add-login-flow',
+    'Add  login   flow!',
+    'feat(auth): add login flow',
+  ])('matches title variant %j consistently', (variant) => {
     const lookup = buildTitleLookup([
       { titles: ['Add login flow'], value: 42 },
     ]);
 
-    for (const variant of [
-      'Add login flow',
-      'ADD LOGIN FLOW',
-      'add-login-flow',
-      'Add  login   flow!',
-      'feat(auth): add login flow',
-    ]) {
-      expect(findTitleMatch(variant, lookup)).toBe(42);
-    }
+    expect(findTitleMatch(variant, lookup)).toBe(42);
   });
 
   test('ignores empty titles when building lookup tables', () => {
