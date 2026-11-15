@@ -2,19 +2,16 @@
 // The real filesystem only throws Error objects, so node:fs has to be mocked to
 // feed it a primitive or null throw.
 
-// @ts-ignore: ESM mocking API is available at runtime; typings for unstable_mockModule are missing in @types/jest.
-import { jest } from '@jest/globals';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 
 const readFileSyncMock = jest.fn<() => string>();
 const writeFileSyncMock = jest.fn();
 
-// @ts-ignore: unstable_mockModule typings are missing in @types/jest.
 jest.unstable_mockModule('node:fs', () => ({
   readFileSync: readFileSyncMock,
   writeFileSync: writeFileSyncMock,
 }));
 
-const { beforeEach, describe, expect, test } = await import('@jest/globals');
 const { readChangelog } = await import('@/lib/changelog-file.js');
 
 /**
@@ -58,21 +55,18 @@ describe('readChangelog error handling', () => {
     );
   });
 
-  test('rethrows a string throw unchanged', () => {
-    readFileSyncMock.mockImplementation(() => {
-      throw 'boom';
-    });
+  test.each(['boom', null, undefined, 42, false])(
+    'rethrows a non-object value unchanged: %p',
+    (thrownValue) => {
+      readFileSyncMock.mockImplementation(() => {
+        throw thrownValue;
+      });
 
-    expect(captureThrow(() => readChangelog('CHANGELOG.md'))).toBe('boom');
-  });
-
-  test('rethrows a null throw unchanged', () => {
-    readFileSyncMock.mockImplementation(() => {
-      throw null;
-    });
-
-    expect(captureThrow(() => readChangelog('CHANGELOG.md'))).toBeNull();
-  });
+      expect(captureThrow(() => readChangelog('CHANGELOG.md'))).toBe(
+        thrownValue,
+      );
+    },
+  );
 
   test('rethrows an error without a code property unchanged', () => {
     const plainError = new Error('no code');
