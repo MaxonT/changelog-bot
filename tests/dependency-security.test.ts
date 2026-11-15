@@ -125,8 +125,14 @@ describe('glob compatibility with the minimatch override', () => {
       extension: ['.ts'],
     });
     const expected = 'tests/evaluation/why-corpus.test.ts';
-    expect(glob.globSync('tests/evalu*/why-*.test.ts')).toContain(expected);
-    expect(testExclude.globSync()).toContain(expected);
-    expect(await testExclude.glob()).toContain(expected);
+    // WHY: glob returns paths with OS-specific separators (for example
+    // `tests\evaluation\...` on Windows), so normalize before comparing.
+    const toPosixPath = (filePath: string): string =>
+      filePath.replaceAll('\\', '/');
+    expect(
+      glob.globSync('tests/evalu*/why-*.test.ts').map(toPosixPath),
+    ).toContain(expected);
+    expect(testExclude.globSync().map(toPosixPath)).toContain(expected);
+    expect((await testExclude.glob()).map(toPosixPath)).toContain(expected);
   });
 });
