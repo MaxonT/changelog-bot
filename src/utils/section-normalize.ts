@@ -26,8 +26,16 @@ function normalizeCategoryHeader(line: string): string {
   const subHeaderMatch = line.match(H3_SUBHEADER_CAPTURE_RE);
   if (!subHeaderMatch) return line;
   const rawKey = subHeaderMatch[1];
-  const normalizedKey =
-    CATEGORY_NORMALIZE_MAP[rawKey.trim().toLowerCase()] ?? rawKey;
+  const normalizedCategory = rawKey.trim().toLowerCase();
+  // WHY: own-property lookup only. A plain `map[key]` also resolves inherited
+  // names such as `constructor` and `__proto__`, which would replace an unknown
+  // heading with "function Object() { [native code] }" or "[object Object]".
+  const normalizedKey = Object.hasOwn(
+    CATEGORY_NORMALIZE_MAP,
+    normalizedCategory,
+  )
+    ? CATEGORY_NORMALIZE_MAP[normalizedCategory]
+    : rawKey;
   return `### ${normalizedKey}`;
 }
 

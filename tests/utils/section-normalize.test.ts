@@ -15,10 +15,53 @@ describe('normalizeSectionCategories', () => {
       '',
     ].join('\n');
 
-    const out = normalizeSectionCategories(input);
+    const expected = [
+      '## [v1.2.3] - 2024-01-01',
+      '',
+      '### Docs',
+      '- Update docs',
+      '',
+      '### Added',
+      '- Add feature',
+      '',
+    ].join('\n');
 
-    expect(out).toContain('## [v1.2.3] - 2024-01-01');
-    expect(out).toContain('### Docs');
-    expect(out).toContain('### Added');
+    expect(normalizeSectionCategories(input)).toBe(expected);
+  });
+
+  test('preserves an unknown heading that matches an inherited property name', () => {
+    const input = [
+      '## [v1.2.3]',
+      '',
+      '### constructor',
+      '- Example entry',
+      '',
+    ].join('\n');
+
+    expect(normalizeSectionCategories(input)).toBe(input);
+  });
+
+  test('preserves a __proto__ heading', () => {
+    const input = [
+      '## [v1.2.3]',
+      '',
+      '### __proto__',
+      '- Example entry',
+      '',
+    ].join('\n');
+
+    expect(normalizeSectionCategories(input)).toBe(input);
+  });
+
+  test('preserves an ordinary unknown heading', () => {
+    const input = [
+      '## [v1.2.3]',
+      '',
+      '### Security',
+      '- Example entry',
+      '',
+    ].join('\n');
+
+    expect(normalizeSectionCategories(input)).toBe(input);
   });
 });
