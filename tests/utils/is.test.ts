@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { test, expect, describe } from '@jest/globals';
 import {
+  isNullable,
   isRecord,
   isString,
   isPrimitive,
@@ -15,6 +16,18 @@ describe('is utilities', () => {
     expect(isRecord([])).toBe(true);
     expect(isRecord(null)).toBe(false);
     expect(isRecord('x')).toBe(false);
+    expect(isRecord(undefined)).toBe(false);
+    expect(isRecord(() => {})).toBe(false);
+  });
+
+  test('isNullable', () => {
+    expect(isNullable(null)).toBe(true);
+    expect(isNullable(undefined)).toBe(true);
+    expect(isNullable(0)).toBe(false);
+    expect(isNullable('')).toBe(false);
+    expect(isNullable(false)).toBe(false);
+    expect(isNullable(NaN)).toBe(false);
+    expect(isNullable({})).toBe(false);
   });
 
   test('isString', () => {

@@ -5,6 +5,7 @@ import {
   isError as isErrorValue,
   isInstanceOf as createInstanceGuard,
   isNaN as isNaNValue,
+  isNil,
   isNotNil,
   isNull,
   isNumber,
@@ -13,7 +14,6 @@ import {
   isSafeInteger as isSafeIntegerValue,
   isString,
   isUndefined as isUndefinedValue,
-  oneOf,
   type Guard,
 } from 'is-kit';
 import { SECTION_ORDER } from '@/constants/changelog.js';
@@ -84,16 +84,14 @@ export function isInstanceOf<Instance>(
  * @param value Unknown candidate.
  * @returns True when the value is nullish (null or undefined).
  */
-export const isNullable = oneOf(isNull, isUndefined);
+export const isNullable = isNil;
 
 /**
  * Determine whether a value is a plain object record (non-null object).
  * @param value Unknown candidate.
  * @returns True when the value is an object and not null.
  */
-export const isRecord = define<Record<string | number | symbol, unknown>>(
-  (value) => isObject(value) && !isNull(value),
-);
+export const isRecord = isObject;
 
 /**
  * Detect whether a model string refers to a reasoning-capable OpenAI family.
