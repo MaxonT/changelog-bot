@@ -7,6 +7,18 @@ function delay(milliseconds: number): Promise<void> {
   });
 }
 
+// WHY: Every invalid limit must collapse to the same sequential fallback, so the
+// expected behavior is identical and only the limit under test varies.
+const invalidConcurrencyLimits: readonly number[] = [
+  0,
+  -5,
+  2.7,
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+  Number.MAX_SAFE_INTEGER + 1,
+];
+
 describe('mapConcurrent', () => {
   test('returns empty array when given empty input', async () => {
     let callCount = 0;
@@ -96,6 +108,63 @@ describe('mapConcurrent', () => {
       async (itemNumber) => itemNumber,
     );
     expect(resultsFloat).toEqual([1, 2, 3]);
+  });
+
+  describe.each(invalidConcurrencyLimits)(
+    'with an invalid concurrency limit of %p',
+    (concurrencyLimit) => {
+      test('maps items sequentially, exactly once, in their original order', async () => {
+        const items = [0, 1, 2];
+        const mapperInvocations: { item: number; index: number }[] = [];
+        let activeMapperCount = 0;
+        let maxActiveMapperCount = 0;
+
+        const results = await mapConcurrent(
+          items,
+          concurrencyLimit,
+          async (itemValue, itemIndex) => {
+            mapperInvocations.push({ item: itemValue, index: itemIndex });
+            activeMapperCount += 1;
+            maxActiveMapperCount = Math.max(
+              maxActiveMapperCount,
+              activeMapperCount,
+            );
+            // WHY: Yielding a microtask keeps the overlap probe deterministic;
+            // timers would make the assertion timing-dependent.
+            await Promise.resolve();
+            activeMapperCount -= 1;
+            return itemValue * 10;
+          },
+        );
+
+        expect(maxActiveMapperCount).toBe(1);
+        expect(mapperInvocations).toEqual([
+          { item: 0, index: 0 },
+          { item: 1, index: 1 },
+          { item: 2, index: 2 },
+        ]);
+        expect(results).toEqual([0, 10, 20]);
+      });
+    },
+  );
+
+  test('observes overlapping mapper calls when the limit allows concurrency', async () => {
+    const items = [0, 1, 2];
+    let activeMapperCount = 0;
+    let maxActiveMapperCount = 0;
+
+    const results = await mapConcurrent(items, 3, async (itemValue) => {
+      activeMapperCount += 1;
+      maxActiveMapperCount = Math.max(maxActiveMapperCount, activeMapperCount);
+      await Promise.resolve();
+      activeMapperCount -= 1;
+      return itemValue;
+    });
+
+    // WHY: Guards against a vacuous sequential assertion; a valid limit must be
+    // observable as real overlap, otherwise the probe above proves nothing.
+    expect(maxActiveMapperCount).toBe(3);
+    expect(results).toEqual([0, 1, 2]);
   });
 
   test('propagates errors when mapper rejects', async () => {
