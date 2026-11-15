@@ -1,6 +1,5 @@
 import {
   arrayOf as createArrayOfGuard,
-  define,
   isArray as isArrayValue,
   isError as isErrorValue,
   isInstanceOf as createInstanceGuard,
@@ -14,10 +13,10 @@ import {
   isSafeInteger as isSafeIntegerValue,
   isString,
   isUndefined as isUndefinedValue,
+  oneOfValues,
   type Guard,
 } from 'is-kit';
 import { SECTION_ORDER } from '@/constants/changelog.js';
-import type { BucketName } from '@/types/changelog.js';
 
 export { isNotNil, isNull, isNumber, isPrimitive, isString };
 
@@ -112,14 +111,5 @@ export function isBulletLine(line: string): boolean {
   return /^\s*[-*]\s+/.test(line);
 }
 
-/**
- * Type guard for changelog bucket names.
- * WHY: Keep the predicate reusable and composable via `define` so it
- * plays nicely with other guard combinators from is-kit.
- * @param section Arbitrary section candidate.
- * @returns True when `section` is one of SECTION_ORDER.
- */
-export const isBucketName = define<BucketName>(
-  (section) =>
-    isString(section) && (SECTION_ORDER as readonly string[]).includes(section),
-);
+/** Type guard for values in the changelog's section order. */
+export const isBucketName = oneOfValues(SECTION_ORDER);
