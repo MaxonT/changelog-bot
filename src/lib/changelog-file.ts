@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { isRecord } from '@/utils/is.js';
 
 const CHANGELOG_FILE_ENCODING = 'utf8';
 
@@ -11,7 +12,7 @@ export function readChangelog(path: string): string {
   try {
     return readFileSync(path, CHANGELOG_FILE_ENCODING);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isRecord(error) && error.code === 'ENOENT') {
       return '';
     }
 
