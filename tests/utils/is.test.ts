@@ -14,6 +14,9 @@ describe('is utilities', () => {
   test('isRecord', () => {
     expect(isRecord({})).toBe(true);
     expect(isRecord([])).toBe(true);
+    expect(isRecord(new Date(0))).toBe(true);
+    expect(isRecord(new Error())).toBe(true);
+    expect(isRecord(new Map())).toBe(true);
     expect(isRecord(null)).toBe(false);
     expect(isRecord('x')).toBe(false);
     expect(isRecord(undefined)).toBe(false);

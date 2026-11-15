@@ -86,7 +86,8 @@ export function isInstanceOf<Instance>(
 export const isNullable = isNil;
 
 /**
- * Determine whether a value is a plain object record (non-null object).
+ * Determine whether a value is a non-null object.
+ * Includes arrays and class instances, but excludes functions.
  * @param value Unknown candidate.
  * @returns True when the value is an object and not null.
  */
