@@ -12,6 +12,8 @@ export type ReleaseItem = {
   url?: string;
   /** Extracted WHY rationale explaining motivation behind the change. */
   why?: string;
+  /** Commit body or description markdown when available. */
+  body?: string;
 };
 
 /** Stable identity assigned to a release change before classification. */

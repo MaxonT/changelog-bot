@@ -22,6 +22,7 @@ import {
 } from '@/utils/llm-output-common.js';
 import { LlmError } from '@/lib/errors.js';
 import { isError } from '@/utils/is.js';
+import { extractBreakingChangeFooter } from '@/utils/conventional.js';
 
 function buildLogsForLLM(
   commitList: CommitLite[],
@@ -31,9 +32,17 @@ function buildLogsForLLM(
     .map((commit) => {
       const numbers = prMapBySha[commit.sha];
       const suffix = numbers?.length ? ` (#${numbers[0]})` : '';
-      return `${commit.sha.slice(0, SHA_SHORT_LENGTH)} ${
+      const baseLine = `${commit.sha.slice(0, SHA_SHORT_LENGTH)} ${
         commit.subject
       }${suffix}`;
+      if (commit.body) {
+        // WHY: Surface breaking change footers to the model while keeping logs concise
+        const breakingFooter = extractBreakingChangeFooter(commit.body);
+        if (breakingFooter) {
+          return `${baseLine}\n    ${breakingFooter}`;
+        }
+      }
+      return baseLine;
     })
     .join('\n');
 }

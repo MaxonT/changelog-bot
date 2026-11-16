@@ -90,6 +90,7 @@ describe('git repository helpers', () => {
         {
           sha: mergeCommitSha,
           subject: 'Merge pull request #42 from feature',
+          body: 'Add the release feature.',
         },
       ]),
     );

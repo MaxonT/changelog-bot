@@ -36,6 +36,32 @@ describe('deterministic classification', () => {
   });
 
   test.each([
+    ['feat: add x', 'BREAKING CHANGE: drop legacy config'],
+    ['fix: handle y', 'BREAKING-CHANGE: rename option z'],
+    ['chore: update tool', 'Details\n\nBREAKING CHANGE: drop node 18 support'],
+    ['feat: add feature\n\nBREAKING CHANGE: drop old api', undefined],
+  ])('prioritizes breaking footers in %s with body %s', (title, body) => {
+    expect(classifyTitleDeterministically(title, body)).toEqual({
+      category: 'Breaking Changes',
+      signal: 'breaking',
+    });
+  });
+
+  test.each([
+    'Revert "feat: add legacy flag"',
+    'Revert "fix: handle parser bug"',
+    "Revert 'feat: add something'",
+    'Revert "feat: add feature" (#42)',
+    'revert: restore legacy output',
+    'revert(core): rollback breaking API',
+  ])('classifies git revert subjects in %s under Reverted', (title) => {
+    expect(classifyTitleDeterministically(title)).toEqual({
+      category: 'Reverted',
+      signal: 'conventional',
+    });
+  });
+
+  test.each([
     ['feat: add export support', 'Added'],
     ['fix(parser): prevent a crash', 'Fixed'],
     ['refactor: simplify parsing', 'Changed'],
@@ -156,6 +182,37 @@ describe('deterministic classification', () => {
       }),
     ).toEqual({
       'release-note:0': 'Chore',
+    });
+  });
+
+  test('overrides provider output when commit body declares breaking change or git revert', () => {
+    const changes: ReleaseChange[] = [
+      {
+        ...releaseNoteChange(0, 'add x', 'feat: add x'),
+        body: 'BREAKING CHANGE: drop legacy config',
+      },
+      {
+        ...releaseNoteChange(1, 'handle y', 'fix: handle y'),
+        body: 'BREAKING-CHANGE: rename option z',
+      },
+      releaseNoteChange(
+        2,
+        'Revert "feat: add legacy flag"',
+        'Revert "feat: add legacy flag"',
+      ),
+    ];
+    const providerAssignments: CategoryAssignments = {
+      'release-note:0': 'Added',
+      'release-note:1': 'Fixed',
+      'release-note:2': 'Added',
+    };
+
+    expect(
+      applyDeterministicClassification(changes, providerAssignments),
+    ).toEqual({
+      'release-note:0': 'Breaking Changes',
+      'release-note:1': 'Breaking Changes',
+      'release-note:2': 'Reverted',
     });
   });
 });

@@ -32,6 +32,22 @@ export const CONVENTIONAL_PREFIX_RE = new RegExp(
 /** Matches any Conventional Commit type carrying a breaking marker. */
 export const CONVENTIONAL_BREAKING_PREFIX_RE = /^[a-z]+(?:\([^)]*\))?!:\s*/i;
 
+/**
+ * Matches Conventional Commit breaking change footers per CC 1.0.0.
+ * WHY: Conventional Commits 1.0.0 allows breaking changes to be declared in
+ * commit footers using either "BREAKING CHANGE:" or "BREAKING-CHANGE:".
+ */
+export const CONVENTIONAL_BREAKING_FOOTER_RE =
+  /^[ \t]*(?:BREAKING CHANGE|BREAKING-CHANGE):\s*/im;
+
+/**
+ * Matches standard git revert commit subjects and GitHub revert pull requests.
+ * WHY: `git revert` produces `Revert "<subject>"` without a colon, whereas conventional
+ * prefix patterns expect `revert:`. Matching this format directly avoids misclassifying
+ * reverted subjects based on keywords inside the quoted message.
+ */
+export const GIT_REVERT_SUBJECT_RE = /^revert\s+["'].*["']/i;
+
 // Inline PR number forms
 export const INLINE_PR_NUMBER_RE = /#(\d+)/g; // extract numbers
 export const INLINE_PR_PRESENT_RE = /\(#\d+\)|\[#\d+\]/; // test presence only

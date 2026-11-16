@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { HEAD_REF } from '@/constants/git.js';
 import { GitError } from '@/lib/errors.js';
 import { isError } from '@/utils/is.js';
+import type { CommitLite } from '@/types/commit.js';
 
 /**
  * Pattern that whitelists simple tag or branch names (alphanumeric plus ._-).
@@ -157,10 +158,16 @@ export function commitsFromMerge(mergeSha: string, cwd?: string): string[] {
 }
 
 /**
- * Enumerate commits in a range with full SHA and subject.
- * @returns Array of `{ sha, subject }` objects.
+ * Enumerate commits in a range with full SHA, subject, and optional body.
+ * WHY: ASCII Unit Separator (0x1f) and Record Separator (0x1e) allow parsing
+ * multiline commit bodies and footers without risking delimiter collision.
+ * @returns Array of `{ sha, subject, body? }` objects.
  */
-export function commitsInRange(prev: string, next: string, repoPath = '.') {
+export function commitsInRange(
+  prev: string,
+  next: string,
+  repoPath = '.',
+): CommitLite[] {
   assertSafeGitRef(prev, 'previous ref');
   assertSafeGitRef(next, 'next ref');
   assertSafePath(repoPath, 'repository path');
@@ -169,14 +176,20 @@ export function commitsInRange(prev: string, next: string, repoPath = '.') {
     repoPath,
     'log',
     `${prev}..${next}`,
-    '--pretty=format:%H%x09%s',
+    '--pretty=format:%H%x1f%s%x1f%b%x1e',
   ]);
   return logOutput
-    .split('\n')
+    .split('\x1e')
+    .map((entry) => entry.trim())
     .filter(Boolean)
-    .map((line) => {
-      const [sha, subject] = line.split('\t');
-      return { sha, subject };
+    .map((entry) => {
+      const [sha, subject, ...bodyParts] = entry.split('\x1f');
+      const body = bodyParts.join('\x1f').trim();
+      return {
+        sha: sha.trim(),
+        subject: subject?.trim() ?? '',
+        ...(body ? { body } : {}),
+      };
     });
 }
 

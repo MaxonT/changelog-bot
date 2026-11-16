@@ -4,4 +4,6 @@ export type CommitLite = {
   sha: string;
   /** Commit subject line used for changelog entries. */
   subject: string;
+  /** Optional commit body text including footers. */
+  body?: string;
 };

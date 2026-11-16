@@ -191,6 +191,7 @@ export function buildCommitReleaseChanges(
       origin,
       title: stripConventionalPrefix(commit.subject),
       rawTitle: commit.subject,
+      ...(commit.body ? { body: commit.body } : {}),
     };
   });
 }
@@ -244,6 +245,7 @@ export function buildReleaseItemsFromPullRequests(
         origin,
         title: stripConventionalPrefix(commit.subject),
         rawTitle: commit.subject,
+        ...(commit.body ? { body: commit.body } : {}),
       });
       continue;
     }
@@ -267,6 +269,7 @@ export function buildReleaseItemsFromPullRequests(
             subIndex: sub.subIndex,
             commitSha: sub.commitSha,
           };
+          const commit = commits.find((c) => c.sha === sub.commitSha);
           items.push({
             id: buildReleaseChangeId(origin),
             origin,
@@ -275,6 +278,7 @@ export function buildReleaseItemsFromPullRequests(
             author: pullRequest.author,
             pr: pullRequest.number,
             url: pullRequest.url,
+            ...(commit?.body ? { body: commit.body } : {}),
           });
         }
       } else {
@@ -282,6 +286,10 @@ export function buildReleaseItemsFromPullRequests(
           kind: 'pull-request',
           number: pullRequest.number,
         };
+        const prCommitBodies = prEntry.commits
+          .map((c) => c.body)
+          .filter(Boolean)
+          .join('\n\n');
         items.push({
           id: buildReleaseChangeId(origin),
           origin,
@@ -290,6 +298,7 @@ export function buildReleaseItemsFromPullRequests(
           author: pullRequest.author,
           pr: pullRequest.number,
           url: pullRequest.url,
+          ...(prCommitBodies ? { body: prCommitBodies } : {}),
         });
       }
     }
@@ -389,6 +398,7 @@ export function expandReleaseChangesWithSubChanges(
         subIndex: sub.subIndex,
         commitSha: sub.commitSha,
       };
+      const commit = commits.find((c) => c.sha === sub.commitSha);
       result.push({
         id: buildReleaseChangeId(origin),
         origin,
@@ -397,6 +407,7 @@ export function expandReleaseChangesWithSubChanges(
         author: change.author,
         pr: change.pr,
         url: change.url,
+        ...(commit?.body ? { body: commit.body } : {}),
       });
     }
 
