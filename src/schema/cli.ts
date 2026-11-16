@@ -14,7 +14,7 @@ import {
   DEFAULT_WHY_MAX_CHARS_PER_PR,
   DEFAULT_WHY_MAX_PRS,
 } from '@/constants/why.js';
-
+import { AUDIENCES, DEFAULT_AUDIENCE } from '@/constants/audience.js';
 /**
  * Runtime validation for CLI options after yargs parsing.
  * WHY: Ensures consistent shapes and supported values across the app.
@@ -32,6 +32,7 @@ export const CliOptionsSchema = z
     instructions: z.string().optional(),
     instructionsFile: z.string().optional(),
     output: z.enum(OUTPUT_DESTINATIONS).default(DEFAULT_OUTPUT_DESTINATION),
+    audience: z.enum(AUDIENCES).default(DEFAULT_AUDIENCE),
     dryRun: z.boolean().default(false),
     dryRunJsonReport: z.boolean().default(false),
     failOnLlmError: z.boolean().default(false),

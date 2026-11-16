@@ -1,6 +1,7 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { z } from 'zod';
+import { AUDIENCES } from '@/constants/audience.js';
 
 import { CliOptionsSchema, type CliOptions } from '@/schema/cli.js';
 import { PROVIDER_NAMES, PROVIDER_OPENAI } from '@/constants/provider.js';
@@ -59,6 +60,10 @@ export async function parseCliArgs(
       type: 'string',
       choices: [...OUTPUT_DESTINATIONS] as unknown as readonly string[],
     })
+    .option('audience', {
+      type: 'string',
+      choices: [...AUDIENCES],
+    })
     .option('dry-run', { type: 'boolean' })
     .option('dry-run-json-report', { type: 'boolean' })
     .option('fail-on-llm-error', { type: 'boolean' })
@@ -96,6 +101,7 @@ export async function parseCliArgs(
     instructions: parsed.instructions,
     instructionsFile: parsed['instructions-file'],
     output: parsed.output as OutputDestination | undefined,
+    audience: parsed.audience,
     dryRun: parsed['dry-run'],
     dryRunJsonReport: parsed['dry-run-json-report'],
     failOnLlmError: parsed['fail-on-llm-error'],
