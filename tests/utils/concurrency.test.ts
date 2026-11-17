@@ -110,41 +110,39 @@ describe('mapConcurrent', () => {
     expect(resultsFloat).toEqual([1, 2, 3]);
   });
 
-  describe.each(invalidConcurrencyLimits)(
-    'with an invalid concurrency limit of %p',
-    (concurrencyLimit) => {
-      test('maps items sequentially, exactly once, in their original order', async () => {
-        const items = [0, 1, 2];
-        const mapperInvocations: { item: number; index: number }[] = [];
-        let activeMapperCount = 0;
-        let maxActiveMapperCount = 0;
+  test.each(invalidConcurrencyLimits)(
+    'maps items sequentially and exactly once with invalid limit %p',
+    async (concurrencyLimit) => {
+      const items = [4, 7, 2];
+      const mapperInvocations: { item: number; index: number }[] = [];
+      let activeMapperCount = 0;
+      let maxActiveMapperCount = 0;
 
-        const results = await mapConcurrent(
-          items,
-          concurrencyLimit,
-          async (itemValue, itemIndex) => {
-            mapperInvocations.push({ item: itemValue, index: itemIndex });
-            activeMapperCount += 1;
-            maxActiveMapperCount = Math.max(
-              maxActiveMapperCount,
-              activeMapperCount,
-            );
-            // WHY: Yielding a microtask keeps the overlap probe deterministic;
-            // timers would make the assertion timing-dependent.
-            await Promise.resolve();
-            activeMapperCount -= 1;
-            return itemValue * 10;
-          },
-        );
+      const results = await mapConcurrent(
+        items,
+        concurrencyLimit,
+        async (itemValue, itemIndex) => {
+          mapperInvocations.push({ item: itemValue, index: itemIndex });
+          activeMapperCount += 1;
+          maxActiveMapperCount = Math.max(
+            maxActiveMapperCount,
+            activeMapperCount,
+          );
+          // WHY: Yielding a microtask keeps the overlap probe deterministic;
+          // timers would make the assertion timing-dependent.
+          await Promise.resolve();
+          activeMapperCount -= 1;
+          return itemValue * 10;
+        },
+      );
 
-        expect(maxActiveMapperCount).toBe(1);
-        expect(mapperInvocations).toEqual([
-          { item: 0, index: 0 },
-          { item: 1, index: 1 },
-          { item: 2, index: 2 },
-        ]);
-        expect(results).toEqual([0, 10, 20]);
-      });
+      expect(maxActiveMapperCount).toBe(1);
+      expect(mapperInvocations).toEqual([
+        { item: 4, index: 0 },
+        { item: 7, index: 1 },
+        { item: 2, index: 2 },
+      ]);
+      expect(results).toEqual([40, 70, 20]);
     },
   );
 
