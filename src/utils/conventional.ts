@@ -71,8 +71,10 @@ function stripFencedCodeBlocks(text: string): string {
 
 /**
  * Check whether a commit body contains an authentic Conventional Commit breaking change footer.
- * WHY: Restricts detection to the actual footer/trailer section at the bottom of the commit,
- * ignoring fenced code blocks and unindented examples embedded in ordinary body text.
+ * WHY: Restricts detection to the footer section by requiring footer paragraphs to begin
+ * with a valid trailer token at column 0, while ignoring fenced code blocks, indented
+ * code examples, and prose lines. Preserves multiline and multi-paragraph footer values,
+ * including migration instructions.
  * @param body Full commit body text (excluding subject).
  * @returns True when an explicit breaking change footer is declared.
  */
@@ -100,38 +102,13 @@ export function hasConventionalBreakingFooter(body?: string): boolean {
     }
 
     // Check if this paragraph contains a breaking change footer token
-    let hasBreakingToken = false;
     for (const line of lines) {
       if (line.startsWith(' ') || line.startsWith('\t')) {
         continue;
       }
       if (BREAKING_FOOTER_TOKEN_PATTERN.test(line)) {
-        hasBreakingToken = true;
-        break;
+        return true;
       }
-    }
-
-    if (!hasBreakingToken) {
-      continue;
-    }
-
-    // Footers must be in the footer section at the end of the commit message.
-    // Every subsequent paragraph (if any) must also be a valid trailer paragraph.
-    let allSubsequentAreTrailers = true;
-    for (
-      let subsequentIndex = pIndex + 1;
-      subsequentIndex < paragraphs.length;
-      subsequentIndex += 1
-    ) {
-      const firstLine = paragraphs[subsequentIndex].split('\n')[0];
-      if (!TRAILER_TOKEN_PATTERN.test(firstLine)) {
-        allSubsequentAreTrailers = false;
-        break;
-      }
-    }
-
-    if (allSubsequentAreTrailers) {
-      return true;
     }
   }
 

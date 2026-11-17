@@ -18,6 +18,15 @@ describe('conventional breaking change detection', () => {
       [
         'Details about the redesign.\n\nBREAKING CHANGE: drop node 18\n\nSigned-off-by: author',
       ],
+      [
+        [
+          'Replace the authentication flow.',
+          '',
+          'BREAKING CHANGE: remove legacy authentication.',
+          '',
+          'Existing users must regenerate their API tokens.',
+        ].join('\n'),
+      ],
     ])('returns true for valid breaking change footer: %j', (body) => {
       expect(hasConventionalBreakingFooter(body)).toBe(true);
     });
@@ -44,13 +53,8 @@ describe('conventional breaking change detection', () => {
       [
         'Tilde code block demonstration:\n~~~\nBREAKING CHANGE: remove old API\n~~~',
       ],
-      [
-        'When writing a commit, you can use:\n\nBREAKING CHANGE: remove old API\n\nThis indicates a major version bump.',
-      ],
       ['Remember to format as:\nBREAKING CHANGE: remove old API'],
-      [
-        'Documentation example:\n\nBREAKING CHANGE: remove old API\n\nThen follow the migration instructions below.',
-      ],
+      ['Here is an example:\nBREAKING CHANGE: remove old API'],
     ])('returns false for invalid or non-breaking body: %j', (body) => {
       expect(hasConventionalBreakingFooter(body)).toBe(false);
     });
