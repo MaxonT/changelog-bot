@@ -28,23 +28,109 @@ const BREAKING_FOOTER_TOKEN_PATTERN =
   /^(?:BREAKING CHANGE|BREAKING-CHANGE):\s+(\S.*)$/;
 
 /**
+ * Pattern matching a valid Git trailer or Conventional Commit footer token at column 0.
+ * WHY: Git trailers and Conventional Commit footers consist of a word token using hyphens
+ * or the special uppercase 'BREAKING CHANGE' token, followed by ': ' or ' #'.
+ */
+const TRAILER_TOKEN_PATTERN =
+  /^(?:BREAKING CHANGE|BREAKING-CHANGE|[A-Za-z0-9-]+)(?::\s|\s#)/;
+
+/**
+ * Strip fenced code blocks from markdown/prose text to prevent matching code examples.
+ * WHY: Documentation commits often contain code blocks demonstrating breaking change syntax.
+ */
+function stripFencedCodeBlocks(text: string): string {
+  const lines = text.split('\n');
+  const sanitizedLines: string[] = [];
+  let inFence = false;
+  let fenceMarker = '';
+
+  for (const line of lines) {
+    const trimmed = line.trimStart();
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1][0];
+      if (!inFence) {
+        inFence = true;
+        fenceMarker = marker;
+        continue;
+      }
+      if (marker === fenceMarker) {
+        inFence = false;
+        fenceMarker = '';
+        continue;
+      }
+    }
+    if (!inFence) {
+      sanitizedLines.push(line);
+    }
+  }
+
+  return sanitizedLines.join('\n');
+}
+
+/**
  * Check whether a commit body contains an authentic Conventional Commit breaking change footer.
- * WHY: Distinguishes genuine unindented footer declarations from lowercase tokens,
- * empty descriptions, and indented examples embedded in documentation or prose.
+ * WHY: Restricts detection to the actual footer/trailer section at the bottom of the commit,
+ * ignoring fenced code blocks and unindented examples embedded in ordinary body text.
  * @param body Full commit body text (excluding subject).
  * @returns True when an explicit breaking change footer is declared.
  */
 export function hasConventionalBreakingFooter(body?: string): boolean {
   if (!body || !body.trim()) return false;
 
-  const lines = body.replace(/\r\n/g, '\n').split('\n');
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    const line = lines[lineIndex];
-    // Footer tokens MUST NOT be indented (e.g. 4-space indented code blocks or examples)
-    if (line.startsWith(' ') || line.startsWith('\t')) {
+  const sanitizedBody = stripFencedCodeBlocks(body.replace(/\r\n/g, '\n'));
+  if (!sanitizedBody.trim()) return false;
+
+  // Split into paragraphs separated by one or more blank lines
+  const paragraphs = sanitizedBody
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trimEnd())
+    .filter((paragraph) => paragraph.trim().length > 0);
+
+  if (paragraphs.length === 0) return false;
+
+  for (let pIndex = 0; pIndex < paragraphs.length; pIndex += 1) {
+    const paragraph = paragraphs[pIndex];
+    const lines = paragraph.split('\n');
+
+    // A valid footer section paragraph MUST start with a valid trailer token at column 0
+    if (!TRAILER_TOKEN_PATTERN.test(lines[0])) {
       continue;
     }
-    if (BREAKING_FOOTER_TOKEN_PATTERN.test(line)) {
+
+    // Check if this paragraph contains a breaking change footer token
+    let hasBreakingToken = false;
+    for (const line of lines) {
+      if (line.startsWith(' ') || line.startsWith('\t')) {
+        continue;
+      }
+      if (BREAKING_FOOTER_TOKEN_PATTERN.test(line)) {
+        hasBreakingToken = true;
+        break;
+      }
+    }
+
+    if (!hasBreakingToken) {
+      continue;
+    }
+
+    // Footers must be in the footer section at the end of the commit message.
+    // Every subsequent paragraph (if any) must also be a valid trailer paragraph.
+    let allSubsequentAreTrailers = true;
+    for (
+      let subsequentIndex = pIndex + 1;
+      subsequentIndex < paragraphs.length;
+      subsequentIndex += 1
+    ) {
+      const firstLine = paragraphs[subsequentIndex].split('\n')[0];
+      if (!TRAILER_TOKEN_PATTERN.test(firstLine)) {
+        allSubsequentAreTrailers = false;
+        break;
+      }
+    }
+
+    if (allSubsequentAreTrailers) {
       return true;
     }
   }

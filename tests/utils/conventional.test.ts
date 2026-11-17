@@ -15,6 +15,9 @@ describe('conventional breaking change detection', () => {
       [
         'Closes #42\nBREAKING CHANGE: change response shape\nSigned-off-by: author',
       ],
+      [
+        'Details about the redesign.\n\nBREAKING CHANGE: drop node 18\n\nSigned-off-by: author',
+      ],
     ])('returns true for valid breaking change footer: %j', (body) => {
       expect(hasConventionalBreakingFooter(body)).toBe(true);
     });
@@ -34,6 +37,20 @@ describe('conventional breaking change detection', () => {
         '  BREAKING-CHANGE: two space indented token in example should not match',
       ],
       ['This is not a footer: BREAKING CHANGE: embedded in a sentence'],
+      [
+        'Here is an example:\n```yaml\nBREAKING CHANGE: remove old API\n```\nMore body text.',
+      ],
+      ['Code block demonstration:\n```\nBREAKING CHANGE: remove old API\n```'],
+      [
+        'Tilde code block demonstration:\n~~~\nBREAKING CHANGE: remove old API\n~~~',
+      ],
+      [
+        'When writing a commit, you can use:\n\nBREAKING CHANGE: remove old API\n\nThis indicates a major version bump.',
+      ],
+      ['Remember to format as:\nBREAKING CHANGE: remove old API'],
+      [
+        'Documentation example:\n\nBREAKING CHANGE: remove old API\n\nThen follow the migration instructions below.',
+      ],
     ])('returns false for invalid or non-breaking body: %j', (body) => {
       expect(hasConventionalBreakingFooter(body)).toBe(false);
     });

@@ -10,6 +10,7 @@ import {
   dateForRef,
   firstCommit,
   gitMergedPRs,
+  parseCommitsFromLog,
   run,
   tryDetectLatestTag,
   tryDetectPrevTag,
@@ -101,55 +102,102 @@ describe('git repository helpers', () => {
     );
   });
 
-  test('extracts breaking change metadata from commit bodies while discarding raw body', () => {
-    executeGit(repositoryPath, ['checkout', '-b', 'breaking-test']);
-    writeFileSync(join(repositoryPath, 'breaking.txt'), 'break\n', 'utf8');
-    executeGit(repositoryPath, ['add', 'breaking.txt']);
+  test('parses multiple commits in exact sequence with empty, multiline, literal separator, and breaking declarations', () => {
+    executeGit(repositoryPath, ['checkout', '-b', 'multi-commit-range-test']);
+
+    writeFileSync(join(repositoryPath, 'c1.txt'), 'c1\n', 'utf8');
+    executeGit(repositoryPath, ['add', 'c1.txt']);
+    executeGit(repositoryPath, ['commit', '-m', 'chore: empty body commit']);
+    const commit1Sha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
+
+    writeFileSync(join(repositoryPath, 'c2.txt'), 'c2\n', 'utf8');
+    executeGit(repositoryPath, ['add', 'c2.txt']);
     executeGit(repositoryPath, [
       'commit',
       '-m',
-      'chore: drop node 18\n\nBREAKING CHANGE: Node 18 is no longer supported.',
+      'feat: multiline body commit\n\nFirst paragraph of details.\n\nSecond paragraph of details.',
     ]);
-    const breakingSha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
+    const commit2Sha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
 
-    try {
-      const commits = commitsInRange('v1.1.0', 'HEAD', repositoryPath);
-      expect(commits).toContainEqual({
-        sha: breakingSha,
-        subject: 'chore: drop node 18',
-        breaking: true,
-      });
-      // Verifies raw commit body is not leaked into CommitLite
-      expect(
-        commits.find((item) => item.sha === breakingSha),
-      ).not.toHaveProperty('body');
-    } finally {
-      executeGit(repositoryPath, ['checkout', 'main']);
-      executeGit(repositoryPath, ['branch', '-D', 'breaking-test']);
-    }
-  });
-
-  test('handles literal record separator characters in commit messages safely via NUL delimiter', () => {
-    executeGit(repositoryPath, ['checkout', '-b', 'separator-test']);
-    writeFileSync(join(repositoryPath, 'sep.txt'), 'sep\n', 'utf8');
-    executeGit(repositoryPath, ['add', 'sep.txt']);
+    writeFileSync(join(repositoryPath, 'c3.txt'), 'c3\n', 'utf8');
+    executeGit(repositoryPath, ['add', 'c3.txt']);
     executeGit(repositoryPath, [
       'commit',
       '-m',
       'fix: test\x1ewith\x1fseparators\n\nBody containing \x1e and \x1f literal characters.',
     ]);
-    const sepSha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
+    const commit3Sha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
+
+    writeFileSync(join(repositoryPath, 'c4.txt'), 'c4\n', 'utf8');
+    executeGit(repositoryPath, ['add', 'c4.txt']);
+    executeGit(repositoryPath, [
+      'commit',
+      '-m',
+      'fix: update api\n\nBREAKING CHANGE: drop legacy endpoints',
+    ]);
+    const commit4Sha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
+
+    writeFileSync(join(repositoryPath, 'c5.txt'), 'c5\n', 'utf8');
+    executeGit(repositoryPath, ['add', 'c5.txt']);
+    executeGit(repositoryPath, [
+      'commit',
+      '-m',
+      'feat!: overhaul architecture\n\nNew architecture implementation.',
+    ]);
+    const commit5Sha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
 
     try {
       const commits = commitsInRange('v1.1.0', 'HEAD', repositoryPath);
-      expect(commits).toContainEqual({
-        sha: sepSha,
-        subject: 'fix: test\x1ewith\x1fseparators',
-      });
+      // Assert the complete resulting commit array with toEqual to verify order,
+      // absence of unexpected/duplicated/missing records, and clean metadata boundaries.
+      expect(commits).toEqual([
+        {
+          sha: commit5Sha,
+          subject: 'feat!: overhaul architecture',
+          breaking: true,
+        },
+        {
+          sha: commit4Sha,
+          subject: 'fix: update api',
+          breaking: true,
+        },
+        {
+          sha: commit3Sha,
+          subject: 'fix: test\x1ewith\x1fseparators',
+        },
+        {
+          sha: commit2Sha,
+          subject: 'feat: multiline body commit',
+        },
+        {
+          sha: commit1Sha,
+          subject: 'chore: empty body commit',
+        },
+      ]);
     } finally {
       executeGit(repositoryPath, ['checkout', 'main']);
-      executeGit(repositoryPath, ['branch', '-D', 'separator-test']);
+      executeGit(repositoryPath, ['branch', '-D', 'multi-commit-range-test']);
     }
+  });
+
+  test('parseCommitsFromLog returns empty array for empty log output', () => {
+    expect(parseCommitsFromLog('')).toEqual([]);
+  });
+
+  test('parseCommitsFromLog throws for incomplete record structures', () => {
+    // Only 2 fields instead of 3
+    const incomplete =
+      '0123456789abcdef0123456789abcdef01234567\0feat: incomplete';
+    expect(() => parseCommitsFromLog(incomplete)).toThrow(
+      /incomplete record structure/,
+    );
+  });
+
+  test('parseCommitsFromLog throws for invalid commit SHA', () => {
+    const invalidSha = 'not-a-valid-sha\0feat: invalid sha\0body text';
+    expect(() => parseCommitsFromLog(invalidSha)).toThrow(
+      /invalid commit SHA "not-a-valid-sha"/,
+    );
   });
 
   test('returns null for failed optional Git lookups', () => {

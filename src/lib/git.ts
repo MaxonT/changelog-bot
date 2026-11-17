@@ -159,6 +159,55 @@ export function commitsFromMerge(mergeSha: string, cwd?: string): string[] {
 }
 
 /**
+ * Parse NUL-delimited git log output into CommitLite records.
+ * WHY: Uses NUL-delimited fields (`-z` and `--format=%H%x00%s%x00%b`) to eliminate
+ * delimiter collision. Rejects incomplete record structures and invalid commit SHAs
+ * to prevent silent production of incomplete changelogs.
+ * @param logOutput Raw output from git log.
+ * @returns Array of validated CommitLite objects.
+ */
+export function parseCommitsFromLog(logOutput: string): CommitLite[] {
+  if (!logOutput) {
+    return [];
+  }
+
+  const fields = logOutput.split('\0');
+  if (fields.length > 0 && fields[fields.length - 1] === '') {
+    fields.pop();
+  }
+
+  if (fields.length % 3 !== 0) {
+    throw new Error(
+      `Failed to parse Git log output: incomplete record structure (received ${fields.length} fields, expected triplets)`,
+    );
+  }
+
+  const commits: CommitLite[] = [];
+
+  for (let index = 0; index < fields.length; index += 3) {
+    const rawSha = fields[index]?.trim() ?? '';
+    const subject = fields[index + 1]?.trim() ?? '';
+    const body = fields[index + 2] ?? '';
+
+    // Validate that the first field in the triplet is a valid Git commit SHA
+    if (!SAFE_SHA_PATTERN.test(rawSha)) {
+      throw new Error(
+        `Failed to parse Git log output: invalid commit SHA "${rawSha}" at record ${index / 3}`,
+      );
+    }
+
+    const isBreaking = hasConventionalBreakingDeclaration(subject, body);
+    commits.push({
+      sha: rawSha,
+      subject,
+      ...(isBreaking ? { breaking: true } : {}),
+    });
+  }
+
+  return commits;
+}
+
+/**
  * Enumerate commits in a range with full SHA, subject, and breaking change signal.
  * WHY: Uses NUL-delimited fields (`-z` and `--format=%H%x00%s%x00%b`) to eliminate
  * delimiter collision even when commit messages contain arbitrary control characters.
@@ -186,34 +235,7 @@ export function commitsInRange(
     '--format=%H%x00%s%x00%b',
   ]);
 
-  if (!logOutput) {
-    return [];
-  }
-
-  // With `-z` and `--format=%H%x00%s%x00%b`, each commit produces 3 fields separated by NUL,
-  // followed by a trailing NUL record terminator.
-  const fields = logOutput.split('\0');
-  const commits: CommitLite[] = [];
-
-  for (let index = 0; index + 2 < fields.length; index += 3) {
-    const rawSha = fields[index]?.trim() ?? '';
-    const subject = fields[index + 1]?.trim() ?? '';
-    const body = fields[index + 2] ?? '';
-
-    // Validate that the first field in the triplet is a valid Git commit SHA
-    if (!SAFE_SHA_PATTERN.test(rawSha)) {
-      continue;
-    }
-
-    const isBreaking = hasConventionalBreakingDeclaration(subject, body);
-    commits.push({
-      sha: rawSha,
-      subject,
-      ...(isBreaking ? { breaking: true } : {}),
-    });
-  }
-
-  return commits;
+  return parseCommitsFromLog(logOutput);
 }
 
 /**
