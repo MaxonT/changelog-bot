@@ -90,7 +90,6 @@ describe('git repository helpers', () => {
         {
           sha: mergeCommitSha,
           subject: 'Merge pull request #42 from feature',
-          body: 'Add the release feature.',
         },
       ]),
     );
@@ -100,6 +99,57 @@ describe('git repository helpers', () => {
     expect(commitsFromMerge(mergeCommitSha, repositoryPath)).toContain(
       featureCommitSha,
     );
+  });
+
+  test('extracts breaking change metadata from commit bodies while discarding raw body', () => {
+    executeGit(repositoryPath, ['checkout', '-b', 'breaking-test']);
+    writeFileSync(join(repositoryPath, 'breaking.txt'), 'break\n', 'utf8');
+    executeGit(repositoryPath, ['add', 'breaking.txt']);
+    executeGit(repositoryPath, [
+      'commit',
+      '-m',
+      'chore: drop node 18\n\nBREAKING CHANGE: Node 18 is no longer supported.',
+    ]);
+    const breakingSha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
+
+    try {
+      const commits = commitsInRange('v1.1.0', 'HEAD', repositoryPath);
+      expect(commits).toContainEqual({
+        sha: breakingSha,
+        subject: 'chore: drop node 18',
+        breaking: true,
+      });
+      // Verifies raw commit body is not leaked into CommitLite
+      expect(
+        commits.find((item) => item.sha === breakingSha),
+      ).not.toHaveProperty('body');
+    } finally {
+      executeGit(repositoryPath, ['checkout', 'main']);
+      executeGit(repositoryPath, ['branch', '-D', 'breaking-test']);
+    }
+  });
+
+  test('handles literal record separator characters in commit messages safely via NUL delimiter', () => {
+    executeGit(repositoryPath, ['checkout', '-b', 'separator-test']);
+    writeFileSync(join(repositoryPath, 'sep.txt'), 'sep\n', 'utf8');
+    executeGit(repositoryPath, ['add', 'sep.txt']);
+    executeGit(repositoryPath, [
+      'commit',
+      '-m',
+      'fix: test\x1ewith\x1fseparators\n\nBody containing \x1e and \x1f literal characters.',
+    ]);
+    const sepSha = executeGit(repositoryPath, ['rev-parse', 'HEAD']);
+
+    try {
+      const commits = commitsInRange('v1.1.0', 'HEAD', repositoryPath);
+      expect(commits).toContainEqual({
+        sha: sepSha,
+        subject: 'fix: test\x1ewith\x1fseparators',
+      });
+    } finally {
+      executeGit(repositoryPath, ['checkout', 'main']);
+      executeGit(repositoryPath, ['branch', '-D', 'separator-test']);
+    }
   });
 
   test('returns null for failed optional Git lookups', () => {

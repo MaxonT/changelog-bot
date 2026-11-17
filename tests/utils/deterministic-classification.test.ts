@@ -36,12 +36,11 @@ describe('deterministic classification', () => {
   });
 
   test.each([
-    ['feat: add x', 'BREAKING CHANGE: drop legacy config'],
-    ['fix: handle y', 'BREAKING-CHANGE: rename option z'],
-    ['chore: update tool', 'Details\n\nBREAKING CHANGE: drop node 18 support'],
-    ['feat: add feature\n\nBREAKING CHANGE: drop old api', undefined],
-  ])('prioritizes breaking footers in %s with body %s', (title, body) => {
-    expect(classifyTitleDeterministically(title, body)).toEqual({
+    ['feat: add x', true],
+    ['fix: handle y', true],
+    ['chore: update tool', true],
+  ])('prioritizes breaking flag in %s with breaking=%s', (title, breaking) => {
+    expect(classifyTitleDeterministically(title, breaking)).toEqual({
       category: 'Breaking Changes',
       signal: 'breaking',
     });
@@ -185,15 +184,15 @@ describe('deterministic classification', () => {
     });
   });
 
-  test('overrides provider output when commit body declares breaking change or git revert', () => {
+  test('overrides provider output when release item declares breaking change or git revert', () => {
     const changes: ReleaseChange[] = [
       {
         ...releaseNoteChange(0, 'add x', 'feat: add x'),
-        body: 'BREAKING CHANGE: drop legacy config',
+        breaking: true,
       },
       {
         ...releaseNoteChange(1, 'handle y', 'fix: handle y'),
-        body: 'BREAKING-CHANGE: rename option z',
+        breaking: true,
       },
       releaseNoteChange(
         2,

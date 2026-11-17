@@ -425,12 +425,12 @@ describe('buildReleaseDraft', () => {
         {
           sha: 'sha3',
           subject: 'fix: handle y',
-          body: 'BREAKING-CHANGE: rename option z',
+          breaking: true,
         },
         {
           sha: 'sha2',
           subject: 'feat: add x',
-          body: 'BREAKING CHANGE: drop legacy config',
+          breaking: true,
         },
         {
           sha: 'sha1',

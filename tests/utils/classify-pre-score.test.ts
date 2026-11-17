@@ -36,4 +36,29 @@ describe('classification input', () => {
     const out = buildChangesForClassification(items);
     expect(out[0].title).toBe('feat: add option');
   });
+
+  test('projects strictly id and title, omitting commit bodies and internal fields from classification payload', () => {
+    const items = [
+      {
+        ...releaseNoteChange(0, 'clean title', 'feat: clean title'),
+        body: 'Arbitrary commit body that must not leak to providers',
+        author: 'alice',
+        url: 'https://github.com/org/repo/pull/1',
+      },
+      {
+        ...releaseNoteChange(1, 'breaking change', 'feat!: breaking change'),
+        breaking: true,
+        body: 'BREAKING CHANGE: drop v1 API',
+      },
+    ];
+
+    const out = buildChangesForClassification(items);
+    expect(out).toEqual([
+      { id: 'release-note:0', title: 'feat: clean title' },
+      { id: 'release-note:1', title: 'feat!: breaking change', breaking: true },
+    ]);
+    expect(out[0]).not.toHaveProperty('body');
+    expect(out[1]).not.toHaveProperty('body');
+    expect(out[0]).not.toHaveProperty('author');
+  });
 });

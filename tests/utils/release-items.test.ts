@@ -314,4 +314,93 @@ describe('expandReleaseChangesWithSubChanges', () => {
     expect(result[0].id).toBe('pr:42');
     expect(excludedChanges).toHaveLength(0);
   });
+
+  test('propagates breaking flag to single-commit PR item', () => {
+    const items = buildReleaseItemsFromPullRequests(
+      [{ sha: 'c1', subject: 'feat: add breaking API', breaking: true }],
+      {
+        c1: [{ number: 50, title: 'feat: add breaking API', author: 'alice' }],
+      },
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe('pr:50');
+    expect(items[0].breaking).toBe(true);
+  });
+
+  test('detects breaking declaration in PR title even if commit is not marked breaking', () => {
+    const items = buildReleaseItemsFromPullRequests(
+      [{ sha: 'c1', subject: 'feat: normal commit' }],
+      {
+        c1: [{ number: 51, title: 'feat!: breaking PR title', author: 'bob' }],
+      },
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe('pr:51');
+    expect(items[0].breaking).toBe(true);
+  });
+
+  test('attributes breaking flag specifically to the breaking sub-change when expanded', () => {
+    const parentPrChange: ReleaseChange = {
+      id: 'pr:60',
+      origin: { kind: 'pull-request', number: 60 },
+      title: 'multi-change PR',
+      pr: 60,
+    };
+    const commits = [
+      { sha: 'c1', subject: 'feat: add new feature' },
+      { sha: 'c2', subject: 'fix: drop old method', breaking: true },
+    ];
+    const pullRequestsBySha = {
+      c1: [{ number: 60, title: 'multi-change PR' }],
+      c2: [{ number: 60, title: 'multi-change PR' }],
+    };
+
+    const result = expandReleaseChangesWithSubChanges(
+      [parentPrChange],
+      commits,
+      pullRequestsBySha,
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('pr:60:c1');
+    expect(result[0].breaking).toBeUndefined();
+    expect(result[1].id).toBe('pr:60:c2');
+    expect(result[1].breaking).toBe(true);
+  });
+
+  test('aborts sub-change expansion and retains parent PR as breaking when a breaking commit would be excluded', () => {
+    const parentPrChange: ReleaseChange = {
+      id: 'pr:70',
+      origin: { kind: 'pull-request', number: 70 },
+      title: 'feature with breaking chore',
+      pr: 70,
+    };
+    const commits = [
+      { sha: 'c1', subject: 'feat: normal user-facing feature' },
+      { sha: 'c2', subject: 'fix: another fix' },
+      // chore commit is breaking, but standard sub-change classification might exclude chore
+      { sha: 'c3', subject: 'chore: drop node 18', breaking: true },
+    ];
+    const pullRequestsBySha = {
+      c1: [{ number: 70, title: 'feature with breaking chore' }],
+      c2: [{ number: 70, title: 'feature with breaking chore' }],
+      c3: [{ number: 70, title: 'feature with breaking chore' }],
+    };
+
+    const excludedChanges: ExcludedReleaseChange[] = [];
+    const result = expandReleaseChangesWithSubChanges(
+      [parentPrChange],
+      commits,
+      pullRequestsBySha,
+      excludedChanges,
+    );
+
+    // Expansion should be rejected to prevent losing the breaking change from the excluded commit
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('pr:70');
+    expect(result[0].breaking).toBe(true);
+    expect(excludedChanges).toHaveLength(0);
+  });
 });

@@ -3,6 +3,7 @@ import { HEAD_REF } from '@/constants/git.js';
 import { GitError } from '@/lib/errors.js';
 import { isError } from '@/utils/is.js';
 import type { CommitLite } from '@/types/commit.js';
+import { hasConventionalBreakingDeclaration } from '@/utils/conventional.js';
 
 /**
  * Pattern that whitelists simple tag or branch names (alphanumeric plus ._-).
@@ -158,10 +159,14 @@ export function commitsFromMerge(mergeSha: string, cwd?: string): string[] {
 }
 
 /**
- * Enumerate commits in a range with full SHA, subject, and optional body.
- * WHY: ASCII Unit Separator (0x1f) and Record Separator (0x1e) allow parsing
- * multiline commit bodies and footers without risking delimiter collision.
- * @returns Array of `{ sha, subject, body? }` objects.
+ * Enumerate commits in a range with full SHA, subject, and breaking change signal.
+ * WHY: Uses NUL-delimited fields (`-z` and `--format=%H%x00%s%x00%b`) to eliminate
+ * delimiter collision even when commit messages contain arbitrary control characters.
+ * Raw commit bodies are parsed for breaking change metadata and immediately discarded.
+ * @param prev Previous git ref.
+ * @param next Target git ref.
+ * @param repoPath Optional repository path.
+ * @returns Array of validated `CommitLite` objects.
  */
 export function commitsInRange(
   prev: string,
@@ -171,26 +176,44 @@ export function commitsInRange(
   assertSafeGitRef(prev, 'previous ref');
   assertSafeGitRef(next, 'next ref');
   assertSafePath(repoPath, 'repository path');
+
   const logOutput = run([
     '-C',
     repoPath,
     'log',
+    '-z',
     `${prev}..${next}`,
-    '--pretty=format:%H%x1f%s%x1f%b%x1e',
+    '--format=%H%x00%s%x00%b',
   ]);
-  return logOutput
-    .split('\x1e')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const [sha, subject, ...bodyParts] = entry.split('\x1f');
-      const body = bodyParts.join('\x1f').trim();
-      return {
-        sha: sha.trim(),
-        subject: subject?.trim() ?? '',
-        ...(body ? { body } : {}),
-      };
+
+  if (!logOutput) {
+    return [];
+  }
+
+  // With `-z` and `--format=%H%x00%s%x00%b`, each commit produces 3 fields separated by NUL,
+  // followed by a trailing NUL record terminator.
+  const fields = logOutput.split('\0');
+  const commits: CommitLite[] = [];
+
+  for (let index = 0; index + 2 < fields.length; index += 3) {
+    const rawSha = fields[index]?.trim() ?? '';
+    const subject = fields[index + 1]?.trim() ?? '';
+    const body = fields[index + 2] ?? '';
+
+    // Validate that the first field in the triplet is a valid Git commit SHA
+    if (!SAFE_SHA_PATTERN.test(rawSha)) {
+      continue;
+    }
+
+    const isBreaking = hasConventionalBreakingDeclaration(subject, body);
+    commits.push({
+      sha: rawSha,
+      subject,
+      ...(isBreaking ? { breaking: true } : {}),
     });
+  }
+
+  return commits;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { isArray } from '@/utils/is.js';
 import {
-  CONVENTIONAL_BREAKING_FOOTER_RE,
+  CONVENTIONAL_BREAKING_PREFIX_RE,
   GIT_REVERT_SUBJECT_RE,
 } from '@/constants/conventional.js';
 
@@ -20,27 +20,52 @@ export function flexPrefixRe(types: string | string[]): RegExp {
 }
 
 /**
- * Check whether text contains a Conventional Commit breaking change footer.
- * @param text Optional commit body, footer, or full commit message.
- * @returns True when a breaking change footer is present.
+ * Pattern matching an unindented Conventional Commit breaking change footer.
+ * WHY: Conventional Commits 1.0.0 requires uppercase tokens ('BREAKING CHANGE'
+ * or 'BREAKING-CHANGE') followed by ': ' and a non-empty description.
  */
-export function hasBreakingFooter(text?: string): boolean {
-  return Boolean(text && CONVENTIONAL_BREAKING_FOOTER_RE.test(text));
+const BREAKING_FOOTER_TOKEN_PATTERN =
+  /^(?:BREAKING CHANGE|BREAKING-CHANGE):\s+(\S.*)$/;
+
+/**
+ * Check whether a commit body contains an authentic Conventional Commit breaking change footer.
+ * WHY: Distinguishes genuine unindented footer declarations from lowercase tokens,
+ * empty descriptions, and indented examples embedded in documentation or prose.
+ * @param body Full commit body text (excluding subject).
+ * @returns True when an explicit breaking change footer is declared.
+ */
+export function hasConventionalBreakingFooter(body?: string): boolean {
+  if (!body || !body.trim()) return false;
+
+  const lines = body.replace(/\r\n/g, '\n').split('\n');
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
+    // Footer tokens MUST NOT be indented (e.g. 4-space indented code blocks or examples)
+    if (line.startsWith(' ') || line.startsWith('\t')) {
+      continue;
+    }
+    if (BREAKING_FOOTER_TOKEN_PATTERN.test(line)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
- * Extract a breaking change footer line from commit text.
- * WHY: Surfacing breaking change footers to LLMs or diagnostics clarifies
- * why a commit was assigned to Breaking Changes without dumping entire bodies.
- * @param text Commit body or full message.
- * @returns Extracted breaking change footer string or null when absent.
+ * Check whether a commit subject or body contains an explicit breaking change declaration.
+ * @param subject Commit subject line.
+ * @param body Optional commit body text.
+ * @returns True when a breaking prefix ('type!:') or breaking footer is present.
  */
-export function extractBreakingChangeFooter(text?: string): string | null {
-  if (!text) return null;
-  const match = CONVENTIONAL_BREAKING_FOOTER_RE.exec(text);
-  if (!match) return null;
-  const matchedLine = text.slice(match.index).split(/\r?\n/)[0]?.trim();
-  return matchedLine || null;
+export function hasConventionalBreakingDeclaration(
+  subject: string,
+  body?: string,
+): boolean {
+  return (
+    CONVENTIONAL_BREAKING_PREFIX_RE.test(subject) ||
+    hasConventionalBreakingFooter(body)
+  );
 }
 
 /**

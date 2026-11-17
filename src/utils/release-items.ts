@@ -9,6 +9,7 @@ import type {
 } from '@/types/release.js';
 import { detectPrSubChangesFromCommits } from '@/utils/sub-changes.js';
 import { stripConventionalPrefix } from '@/utils/title-normalize.js';
+import { CONVENTIONAL_BREAKING_PREFIX_RE } from '@/constants/conventional.js';
 
 function findPullRequestWithTitle(
   commitSha: string,
@@ -172,6 +173,76 @@ export function deduplicateReleaseChangesByPullRequest(
 }
 
 /**
+ * Check whether a pull request or any of its associated commits declares an explicit breaking change.
+ * @param pullRequestTitle Pull request title string.
+ * @param prCommits Associated commits for this pull request.
+ * @returns True when a breaking change is explicitly declared.
+ */
+function isPullRequestBreaking(
+  pullRequestTitle?: string,
+  prCommits?: readonly CommitLite[],
+): boolean {
+  if (
+    pullRequestTitle &&
+    CONVENTIONAL_BREAKING_PREFIX_RE.test(pullRequestTitle)
+  ) {
+    return true;
+  }
+  return Boolean(prCommits?.some((commit) => commit.breaking));
+}
+
+/**
+ * Determine whether a pull request can be safely expanded into sub-changes without losing
+ * or misattributing explicit breaking change declarations.
+ * WHY: If sub-change discovery excludes a breaking commit (e.g. chore/fixup) or the PR title
+ * itself was breaking without commit-level breakdown, expanding into non-breaking sub-changes
+ * would silently drop the breaking signal. In that case, preserving the PR-level change is required.
+ * @param pullRequestTitle Pull request title string.
+ * @param prCommits Associated commits for this pull request.
+ * @param subChanges Discovered sub-changes.
+ * @returns True when expansion is safe and accounts for all breaking declarations.
+ */
+function canSafelyExpandPrSubChanges(
+  pullRequestTitle: string | undefined,
+  prCommits: readonly CommitLite[],
+  subChanges: readonly { commitSha?: string }[] | null,
+): boolean {
+  if (!subChanges || subChanges.length < 2) {
+    return false;
+  }
+
+  const breakingCommits = prCommits.filter((commit) => commit.breaking);
+
+  // If the PR title itself declared breaking, but none of the commits were breaking,
+  // expanding into sub-changes would lose the PR title's breaking signal.
+  const prTitleIsBreaking = Boolean(
+    pullRequestTitle && CONVENTIONAL_BREAKING_PREFIX_RE.test(pullRequestTitle),
+  );
+  if (prTitleIsBreaking && breakingCommits.length === 0) {
+    return false;
+  }
+
+  // If any commit has an explicit breaking declaration, verify that every breaking commit
+  // is directly attributed to an expanded sub-change. If any breaking commit was excluded
+  // (e.g. non-user-facing chore), do not expand so the breaking signal is never discarded.
+  if (breakingCommits.length > 0) {
+    const subChangeShas = new Set(
+      subChanges
+        .map((sub) => sub.commitSha)
+        .filter((sha): sha is string => Boolean(sha)),
+    );
+    const allBreakingRepresented = breakingCommits.every((commit) =>
+      subChangeShas.has(commit.sha),
+    );
+    if (!allBreakingRepresented) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Assign stable commit-based identities to commits in the release range before transforms.
  * WHY: Establishes an independent pre-transform ledger for commit-based sources, ensuring
  * that every commit subsequently replaced by or collapsed into a PR item is accounted for.
@@ -191,7 +262,7 @@ export function buildCommitReleaseChanges(
       origin,
       title: stripConventionalPrefix(commit.subject),
       rawTitle: commit.subject,
-      ...(commit.body ? { body: commit.body } : {}),
+      ...(commit.breaking ? { breaking: true } : {}),
     };
   });
 }
@@ -245,7 +316,7 @@ export function buildReleaseItemsFromPullRequests(
         origin,
         title: stripConventionalPrefix(commit.subject),
         rawTitle: commit.subject,
-        ...(commit.body ? { body: commit.body } : {}),
+        ...(commit.breaking ? { breaking: true } : {}),
       });
       continue;
     }
@@ -255,13 +326,24 @@ export function buildReleaseItemsFromPullRequests(
     if (!processedPrNumbers.has(pullRequest.number)) {
       processedPrNumbers.add(pullRequest.number);
       const prEntry = commitsByPrNumber.get(pullRequest.number)!;
+      const isPrBreaking = isPullRequestBreaking(
+        prEntry.pullRequest.title,
+        prEntry.commits,
+      );
       const subChanges = detectPrSubChangesFromCommits(
         pullRequest.number,
         prEntry.pullRequest.title ?? '',
         prEntry.commits,
       );
 
-      if (subChanges && subChanges.length >= 2) {
+      if (
+        canSafelyExpandPrSubChanges(
+          prEntry.pullRequest.title,
+          prEntry.commits,
+          subChanges,
+        ) &&
+        subChanges
+      ) {
         for (const sub of subChanges) {
           const origin: ReleaseChangeOrigin = {
             kind: 'pull-request-subchange',
@@ -269,7 +351,9 @@ export function buildReleaseItemsFromPullRequests(
             subIndex: sub.subIndex,
             commitSha: sub.commitSha,
           };
-          const commit = commits.find((c) => c.sha === sub.commitSha);
+          const subCommit = prEntry.commits.find(
+            (candidate) => candidate.sha === sub.commitSha,
+          );
           items.push({
             id: buildReleaseChangeId(origin),
             origin,
@@ -278,7 +362,7 @@ export function buildReleaseItemsFromPullRequests(
             author: pullRequest.author,
             pr: pullRequest.number,
             url: pullRequest.url,
-            ...(commit?.body ? { body: commit.body } : {}),
+            ...(subCommit?.breaking ? { breaking: true } : {}),
           });
         }
       } else {
@@ -286,10 +370,6 @@ export function buildReleaseItemsFromPullRequests(
           kind: 'pull-request',
           number: pullRequest.number,
         };
-        const prCommitBodies = prEntry.commits
-          .map((c) => c.body)
-          .filter(Boolean)
-          .join('\n\n');
         items.push({
           id: buildReleaseChangeId(origin),
           origin,
@@ -298,7 +378,7 @@ export function buildReleaseItemsFromPullRequests(
           author: pullRequest.author,
           pr: pullRequest.number,
           url: pullRequest.url,
-          ...(prCommitBodies ? { body: prCommitBodies } : {}),
+          ...(isPrBreaking ? { breaking: true } : {}),
         });
       }
     }
@@ -374,19 +454,33 @@ export function expandReleaseChangesWithSubChanges(
     }
 
     const prCommits = commitsByPrNumber.get(change.pr);
+    const prTitle = change.rawTitle ?? change.title;
+    const isPrBreaking = isPullRequestBreaking(prTitle, prCommits);
+
     if (!prCommits || prCommits.length < 2) {
-      result.push(change);
+      if (isPrBreaking && !change.breaking) {
+        result.push({ ...change, breaking: true });
+      } else {
+        result.push(change);
+      }
       continue;
     }
 
     const subChanges = detectPrSubChangesFromCommits(
       change.pr,
-      change.rawTitle ?? change.title,
+      prTitle,
       prCommits,
     );
 
-    if (!subChanges || subChanges.length < 2) {
-      result.push(change);
+    if (
+      !canSafelyExpandPrSubChanges(prTitle, prCommits, subChanges) ||
+      !subChanges
+    ) {
+      if (isPrBreaking && !change.breaking) {
+        result.push({ ...change, breaking: true });
+      } else {
+        result.push(change);
+      }
       continue;
     }
 
@@ -398,7 +492,9 @@ export function expandReleaseChangesWithSubChanges(
         subIndex: sub.subIndex,
         commitSha: sub.commitSha,
       };
-      const commit = commits.find((c) => c.sha === sub.commitSha);
+      const subCommit = prCommits.find(
+        (candidate) => candidate.sha === sub.commitSha,
+      );
       result.push({
         id: buildReleaseChangeId(origin),
         origin,
@@ -407,14 +503,17 @@ export function expandReleaseChangesWithSubChanges(
         author: change.author,
         pr: change.pr,
         url: change.url,
-        ...(commit?.body ? { body: commit.body } : {}),
+        ...(subCommit?.breaking ? { breaking: true } : {}),
       });
     }
 
     // Record original parent PR in excludedChanges
     if (excludedChanges) {
       excludedChanges.push({
-        change,
+        change:
+          isPrBreaking && !change.breaking
+            ? { ...change, breaking: true }
+            : change,
         reason: 'collapsed-into-pr',
         detail: `Expanded into sub-changes for PR #${change.pr}`,
       });
