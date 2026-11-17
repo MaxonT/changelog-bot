@@ -1,9 +1,12 @@
 import { describe, expect, jest, test } from '@jest/globals';
 
 import {
+  buildClassificationPrompt,
   classifyChangesWithFallback,
   parseCategoryAssignments,
 } from '@/providers/classification.js';
+import { SECTION_ORDER } from '@/constants/changelog.js';
+import type { ClassificationChange } from '@/types/changelog.js';
 
 const changes = [{ id: 'release-note:0' as const, title: 'Fix lookup' }];
 
@@ -161,5 +164,60 @@ describe('classifyChangesWithFallback', () => {
     expect(
       parseCategoryAssignments(JSON.stringify(assignments), changes),
     ).toBeUndefined();
+  });
+});
+
+describe('buildClassificationPrompt', () => {
+  test('explicitly projects only id and title into the external provider payload', () => {
+    const internalChanges: ClassificationChange[] = [
+      { id: 'commit:1', title: 'feat: add feature' },
+      { id: 'commit:2', title: 'fix: patch bug', breaking: true },
+    ];
+
+    const prompt = buildClassificationPrompt(internalChanges);
+
+    expect(prompt).toEqual({
+      changes: [
+        { id: 'commit:1', title: 'feat: add feature' },
+        { id: 'commit:2', title: 'fix: patch bug' },
+      ],
+      categories: SECTION_ORDER,
+    });
+
+    // Ensure breaking is not leaked in the payload
+    expect(prompt.changes[1]).not.toHaveProperty('breaking');
+
+    // Ensure serialized JSON never contains internal breaking metadata
+    const serialized = JSON.stringify(prompt);
+    expect(serialized).not.toContain('"breaking"');
+  });
+
+  test('strips arbitrary internal and extraneous properties from serialized provider requests', () => {
+    const rawInput = [
+      {
+        id: 'commit:abc',
+        title: 'docs: update guide',
+        extraField: 'secret-or-raw-body',
+        body: 'raw commit body',
+        author: 'alice',
+        breaking: true,
+      } as unknown as ClassificationChange,
+    ];
+
+    const prompt = buildClassificationPrompt(rawInput);
+
+    expect(prompt.changes[0]).toEqual({
+      id: 'commit:abc',
+      title: 'docs: update guide',
+    });
+    expect(prompt.changes[0]).not.toHaveProperty('extraField');
+    expect(prompt.changes[0]).not.toHaveProperty('body');
+    expect(prompt.changes[0]).not.toHaveProperty('author');
+    expect(prompt.changes[0]).not.toHaveProperty('breaking');
+
+    const serialized = JSON.stringify(prompt);
+    expect(serialized).not.toContain('secret-or-raw-body');
+    expect(serialized).not.toContain('raw commit body');
+    expect(serialized).not.toContain('"breaking"');
   });
 });

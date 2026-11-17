@@ -36,6 +36,31 @@ describe('deterministic classification', () => {
   });
 
   test.each([
+    ['feat: add x', true],
+    ['fix: handle y', true],
+    ['chore: update tool', true],
+  ])('prioritizes breaking flag in %s with breaking=%s', (title, breaking) => {
+    expect(classifyTitleDeterministically(title, breaking)).toEqual({
+      category: 'Breaking Changes',
+      signal: 'breaking',
+    });
+  });
+
+  test.each([
+    'Revert "feat: add legacy flag"',
+    'Revert "fix: handle parser bug"',
+    "Revert 'feat: add something'",
+    'Revert "feat: add feature" (#42)',
+    'revert: restore legacy output',
+    'revert(core): rollback breaking API',
+  ])('classifies git revert subjects in %s under Reverted', (title) => {
+    expect(classifyTitleDeterministically(title)).toEqual({
+      category: 'Reverted',
+      signal: 'conventional',
+    });
+  });
+
+  test.each([
     ['feat: add export support', 'Added'],
     ['fix(parser): prevent a crash', 'Fixed'],
     ['refactor: simplify parsing', 'Changed'],
@@ -156,6 +181,37 @@ describe('deterministic classification', () => {
       }),
     ).toEqual({
       'release-note:0': 'Chore',
+    });
+  });
+
+  test('overrides provider output when release item declares breaking change or git revert', () => {
+    const changes: ReleaseChange[] = [
+      {
+        ...releaseNoteChange(0, 'add x', 'feat: add x'),
+        breaking: true,
+      },
+      {
+        ...releaseNoteChange(1, 'handle y', 'fix: handle y'),
+        breaking: true,
+      },
+      releaseNoteChange(
+        2,
+        'Revert "feat: add legacy flag"',
+        'Revert "feat: add legacy flag"',
+      ),
+    ];
+    const providerAssignments: CategoryAssignments = {
+      'release-note:0': 'Added',
+      'release-note:1': 'Fixed',
+      'release-note:2': 'Added',
+    };
+
+    expect(
+      applyDeterministicClassification(changes, providerAssignments),
+    ).toEqual({
+      'release-note:0': 'Breaking Changes',
+      'release-note:1': 'Breaking Changes',
+      'release-note:2': 'Reverted',
     });
   });
 });

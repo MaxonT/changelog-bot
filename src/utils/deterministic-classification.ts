@@ -26,6 +26,7 @@ import type {
 import type { ReleaseChange } from '@/types/release.js';
 import { bestCategory, scoreCategories } from '@/utils/category-score.js';
 import { isDependencyUpdateTitle } from '@/utils/dependency-update.js';
+import { isRevertTitle } from '@/utils/conventional.js';
 
 type CommitType = (typeof COMMIT_TYPES)[number];
 
@@ -173,17 +174,23 @@ function highestScoringCategory(scores: CategoryScores): BucketName | null {
 /**
  * Classify one title using the canonical deterministic precedence.
  * @param rawTitle Original title or commit subject, including any prefix.
+ * @param breaking Optional explicit breaking change signal.
  * @returns Category and the signal strength responsible for the decision.
  */
 export function classifyTitleDeterministically(
   rawTitle: string,
+  breaking?: boolean,
 ): DeterministicClassification {
-  if (CONVENTIONAL_BREAKING_PREFIX_RE.test(rawTitle)) {
+  if (breaking || CONVENTIONAL_BREAKING_PREFIX_RE.test(rawTitle)) {
     return { category: SECTION_BREAKING_CHANGES, signal: 'breaking' };
   }
 
   if (isReleaseAutomationTitle(rawTitle)) {
     return { category: SECTION_CHORE, signal: 'strong-semantic' };
+  }
+
+  if (isRevertTitle(rawTitle)) {
+    return { category: SECTION_REVERTED, signal: 'conventional' };
   }
 
   const prefixCategory = conventionalCategory(rawTitle);
@@ -224,9 +231,9 @@ export function classifyChangesDeterministically(
   changes: readonly ClassificationChange[],
 ): CategoryAssignments {
   return Object.fromEntries(
-    changes.map(({ id, title }) => [
+    changes.map(({ id, title, breaking }) => [
       id,
-      classifyTitleDeterministically(title).category,
+      classifyTitleDeterministically(title, breaking).category,
     ]),
   ) as CategoryAssignments;
 }
@@ -246,13 +253,14 @@ function changeTitles(
 
 function strongestClassification(
   titles: string[],
+  breaking?: boolean,
 ): DeterministicClassification {
   let strongest: DeterministicClassification = {
     category: SECTION_CHORE,
     signal: 'fallback',
   };
   for (const title of titles) {
-    const candidate = classifyTitleDeterministically(title);
+    const candidate = classifyTitleDeterministically(title, breaking);
     if (SIGNAL_PRIORITY[candidate.signal] > SIGNAL_PRIORITY[strongest.signal]) {
       strongest = candidate;
     }
@@ -288,7 +296,7 @@ export function applyDeterministicTitleClassification(
     const currentCategory = adjusted[change.id] ?? SECTION_CHORE;
     adjusted[change.id] = categoryAfterDeterministicRules(
       currentCategory,
-      classifyTitleDeterministically(change.title),
+      classifyTitleDeterministically(change.title, change.breaking),
     );
   }
   return adjusted;
@@ -310,10 +318,15 @@ export function applyDeterministicClassification(
   const classificationTitles = new Map(
     classificationChanges.map(({ id, title }) => [id, title]),
   );
+  const classificationBreaking = new Map(
+    classificationChanges.map(({ id, breaking }) => [id, breaking]),
+  );
 
   for (const change of changes) {
+    const isBreaking = change.breaking ?? classificationBreaking.get(change.id);
     const decision = strongestClassification(
       changeTitles(change, classificationTitles.get(change.id)),
+      isBreaking,
     );
     const currentCategory = adjusted[change.id] ?? SECTION_CHORE;
     adjusted[change.id] = categoryAfterDeterministicRules(

@@ -12,6 +12,8 @@ export type ReleaseItem = {
   url?: string;
   /** Extracted WHY rationale explaining motivation behind the change. */
   why?: string;
+  /** Explicit breaking change signal inherited from commit or PR metadata. */
+  breaking?: true;
 };
 
 /** Stable identity assigned to a release change before classification. */

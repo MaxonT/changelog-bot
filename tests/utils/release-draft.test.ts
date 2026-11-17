@@ -1,5 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
 import { buildReleaseDraft } from '@/utils/release-draft.js';
+import { buildSectionFromRelease } from '@/utils/release-section.js';
 import { buildPrMapBySha, buildTitleToPr } from '@/utils/pr-mapping.js';
 import { validateReleaseResult } from '@/utils/release-validation.js';
 
@@ -414,5 +415,43 @@ describe('buildReleaseDraft', () => {
       ]),
     );
     expect(validateReleaseResult(draft).kind).toBe('release');
+  });
+
+  test('classifies breaking footers under Breaking Changes and git revert under Reverted (#365)', () => {
+    const draft = buildReleaseDraft({
+      version: '2.0.0',
+      date: '2026-11-15',
+      commitList: [
+        {
+          sha: 'sha3',
+          subject: 'fix: handle y',
+          breaking: true,
+        },
+        {
+          sha: 'sha2',
+          subject: 'feat: add x',
+          breaking: true,
+        },
+        {
+          sha: 'sha1',
+          subject: 'Revert "feat: add legacy flag"',
+        },
+      ],
+      owner: 'acme',
+      repo: 'demo',
+    });
+
+    expect(draft.assignments['commit:sha3']).toBe('Breaking Changes');
+    expect(draft.assignments['commit:sha2']).toBe('Breaking Changes');
+    expect(draft.assignments['commit:sha1']).toBe('Reverted');
+
+    const section = buildSectionFromRelease(draft);
+    expect(section).toContain('### Breaking Changes');
+    expect(section).toContain('### Reverted');
+    expect(section).not.toContain('### Added');
+    expect(section).not.toContain('### Fixed');
+    expect(section).toContain('- handle y');
+    expect(section).toContain('- add x');
+    expect(section).toContain('- Revert "feat: add legacy flag"');
   });
 });

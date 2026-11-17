@@ -17,9 +17,9 @@ import {
   FIX_PREFIX_FLEX_RE,
   PERF_PREFIX_FLEX_RE,
   REFACTOR_PERF_STYLE_PREFIX_FLEX_RE,
-  REVERT_PREFIX_FLEX_RE,
   TEST_PREFIX_FLEX_RE,
 } from '@/constants/conventional.js';
+import { isRevertTitle } from '@/utils/conventional.js';
 import {
   CATEGORY_WEIGHTS,
   NEGATIVE_ATTENUATION_WEIGHT,
@@ -86,7 +86,7 @@ export function collectPrefixScoreDeltas(
   if (TEST_PREFIX_FLEX_RE.test(lowercasedTitle)) {
     deltas[SECTION_TEST] = CATEGORY_WEIGHTS.prefix.test;
   }
-  if (REVERT_PREFIX_FLEX_RE.test(lowercasedTitle)) {
+  if (isRevertTitle(rawTitle) || isRevertTitle(lowercasedTitle)) {
     deltas[SECTION_REVERTED] = CATEGORY_WEIGHTS.prefix.revert;
   }
   if (CHORE_PREFIX_FLEX_RE.test(lowercasedTitle)) {

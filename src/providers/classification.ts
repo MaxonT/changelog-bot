@@ -28,23 +28,40 @@ export class IncompleteClassificationError extends Error {
   }
 }
 
+/** Single item in the classification prompt payload. */
+export type ClassificationPromptItem = {
+  /** Canonical ID of the change. */
+  id: string;
+  /** Normalized title to categorize. */
+  title: string;
+};
+
 /** Prompt payload sent to classification LLMs. */
 export type ClassificationPrompt = {
   /** Canonical IDs and normalized titles to categorize. */
-  changes: ClassificationChange[];
+  changes: ClassificationPromptItem[];
   /** Ordered list of changelog categories to enforce. */
   categories: readonly string[];
 };
 
 /**
  * Build the shared classification prompt for provider-specific request code.
+ * WHY: Explicitly projects only the allowed external fields ({ id, title }) to guarantee
+ * that internal metadata (such as breaking flags or commit bodies) is never leaked
+ * into external LLM provider requests.
  * @param changes Release changes to classify by stable ID.
  * @returns Prompt payload containing changes and canonical categories.
  */
 export function buildClassificationPrompt(
   changes: ClassificationChange[],
 ): ClassificationPrompt {
-  return { changes, categories: SECTION_ORDER };
+  return {
+    changes: changes.map(({ id, title }) => ({
+      id,
+      title,
+    })),
+    categories: SECTION_ORDER,
+  };
 }
 
 /**

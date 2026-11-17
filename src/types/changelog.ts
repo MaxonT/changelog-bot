@@ -16,6 +16,8 @@ export type ClassificationChange = {
   id: ReleaseChangeId;
   /** Normalized title used only as classification context. */
   title: string;
+  /** Explicit breaking change signal inherited from commit or PR metadata. */
+  breaking?: true;
 };
 
 /** Maps each release-change ID to exactly one changelog category. */

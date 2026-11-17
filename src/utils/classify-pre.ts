@@ -14,5 +14,6 @@ export function buildChangesForClassification(
   return items.map((item) => ({
     id: item.id,
     title: (item.rawTitle ?? item.title).trim(),
+    ...(item.breaking ? { breaking: true } : {}),
   }));
 }
