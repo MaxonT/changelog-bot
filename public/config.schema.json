@@ -21,7 +21,12 @@
     "provider": {
       "description": "LLM provider.",
       "type": "string",
-      "enum": ["openai", "anthropic", "gemini", "xai"]
+      "enum": [
+        "openai",
+        "anthropic",
+        "gemini",
+        "xai"
+      ]
     },
     "releaseTag": {
       "description": "Git ref (tag or HEAD) to generate the release for.",
@@ -40,11 +45,6 @@
       "type": "string",
       "minLength": 1
     },
-    "audience": {
-      "description": "Audience for generated changelog content (all|user).",
-      "type": "string",
-      "enum": ["all", "user"]
-    },
     "instructions": {
       "description": "Additional changelog writing/grouping instructions.",
       "type": "string"
@@ -56,7 +56,23 @@
     "output": {
       "description": "Changelog delivery destination (pull-request|file|stdout).",
       "type": "string",
-      "enum": ["pull-request", "file", "stdout"]
+      "enum": [
+        "pull-request",
+        "file",
+        "stdout"
+      ]
+    },
+    "audience": {
+      "description": "Audience for generated changelog content (all|user).",
+      "type": "string",
+      "enum": [
+        "all",
+        "user"
+      ]
+    },
+    "check": {
+      "description": "Exit non-zero when the CHANGELOG differs from generated content.",
+      "type": "boolean"
     },
     "dryRun": {
       "description": "Print the updated CHANGELOG to stdout instead of writing it.",
@@ -85,7 +101,10 @@
     "whyEngine": {
       "description": "WHY engine (`jev` is experimental).",
       "type": "string",
-      "enum": ["llm", "jev"]
+      "enum": [
+        "llm",
+        "jev"
+      ]
     },
     "whyMaxPrs": {
       "description": "Maximum PRs to inspect for WHY extraction.",
@@ -102,7 +121,11 @@
     "whyConfidence": {
       "description": "Minimum WHY confidence.",
       "type": "string",
-      "enum": ["low", "medium", "high"]
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
     },
     "whyLabel": {
       "description": "Label rendered before WHY notes.",
