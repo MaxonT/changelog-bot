@@ -658,4 +658,47 @@ describe('llm-output', () => {
       );
     },
   );
+  
+  test('returns no-changes when all changes are filtered for user audience', async () => {
+    const result = await buildChangelogLlmOutput(
+      buildBaseParams({
+        audience: 'user',
+        noAi: true,
+        commitList: [
+          { sha: 'abcdef1', subject: 'chore: update internal tooling' },
+        ],
+      }),
+    );
+
+    expect(result.outcome?.kind).toBe('no-changes');
+    expect(result.llm.new_section_markdown).not.toContain(
+      'update internal tooling',
+    );
+  });
+
+    test('preserves additional release-note sections when user audience filters all changes', async () => {
+    const result = await buildChangelogLlmOutput(
+      buildBaseParams({
+        audience: 'user',
+        releaseBody: [
+          "## What's Changed",
+          '- Update internal tooling',
+          '',
+          '## Migration Notes',
+          'Existing configuration remains compatible.',
+        ].join('\n'),
+      }),
+    );
+
+    expect(result.llm.new_section_markdown).toContain(
+      'Migration Notes',
+    );
+    expect(result.llm.new_section_markdown).toContain(
+      'Existing configuration remains compatible.',
+    );
+    expect(result.llm.new_section_markdown).not.toContain(
+      'Update internal tooling',
+    );
+  });
+
 });
