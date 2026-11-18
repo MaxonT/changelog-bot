@@ -611,4 +611,51 @@ describe('llm-output', () => {
       'Update internal tooling',
     );
   });
+    test.each([true, false])(
+    'applies user audience filtering with provider available=%s',
+    async (hasProviderKey) => {
+      const generate = jest.fn(async () => ({
+        changes: {
+          'commit:abcdef1': { title: 'add export support' },
+          'commit:abcdef2': { title: 'update internal tooling' },
+        },
+      }));
+
+      const result = await buildChangelogLlmOutput(
+        buildBaseParams({
+          audience: 'user',
+          hasProviderKey,
+          provider: { ...mockProvider, generate },
+          commitList: [
+            { sha: 'abcdef1', subject: 'feat: add export support' },
+            { sha: 'abcdef2', subject: 'chore: update internal tooling' },
+          ],
+        }),
+      );
+
+      expect(generate).toHaveBeenCalledTimes(hasProviderKey ? 1 : 0);
+      expect(result.aiUsed).toBe(hasProviderKey);
+
+      expect(result.draft?.assignments).toEqual({
+        'commit:abcdef1': 'Added',
+      });
+
+      expect(result.draft?.excludedChanges).toContainEqual(
+        expect.objectContaining({
+          change: expect.objectContaining({
+            id: 'commit:abcdef2',
+          }),
+          reason: 'filtered',
+          detail: 'audience:user',
+        }),
+      );
+
+      expect(result.llm.new_section_markdown).toContain(
+        'add export support',
+      );
+      expect(result.llm.new_section_markdown).not.toContain(
+        'update internal tooling',
+      );
+    },
+  );
 });
