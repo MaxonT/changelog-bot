@@ -103,9 +103,9 @@ export function hasSection(content: string, version: string): boolean {
 // which differ only in the flags they pass.
 function buildVersionSectionRegExp(version: string, flags: string): RegExp {
   return new RegExp(
-    `^##\\s*\\[v${escapeRegExp(
-      version,
-    )}\\][^\\n]*\\n[\\s\\S]*?(?=^##\\s*\\[|\\s*$)`,
+`^##\\s*\\[v${escapeRegExp(
+  version,
+)}\\][^\\n]*\\n[\\s\\S]*?(?=^##\\s*\\[|(?![\\s\\S]))`,
     flags,
   );
 }

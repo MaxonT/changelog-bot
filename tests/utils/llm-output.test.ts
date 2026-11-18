@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, expect, test, jest } from '@jest/globals';
-
+import { SECTION_CHORE } from '@/constants/changelog.js';
 // With ESM + ts-jest, mock modules before importing the SUT using unstable_mockModule.
 await jest.unstable_mockModule('@/utils/classify.js', () => ({
   classifyChanges: jest.fn(async () => ({
@@ -548,4 +548,167 @@ describe('llm-output', () => {
     expect(result.aiUsed).toBe(false);
     expect(result.outcome?.kind).toBe('no-changes');
   });
+
+  test('filters maintainer-only categories for user audience', async () => {
+    const classifyChanges = jest.fn(async () => ({
+      assignments: {
+        'release-note:0': 'Added',
+        'release-note:1': SECTION_CHORE,
+      },
+      diagnostics: [],
+    }));
+
+    const result = await buildChangelogLlmOutput(
+      buildBaseParams({
+        releaseBody: [
+          "## What's Changed",
+          '- Add export support',
+          '- Update internal tooling',
+        ].join('\n'),
+        provider: { ...mockProvider, classifyChanges },
+        hasProviderKey: true,
+        audience: 'user',
+      }),
+    );
+
+    expect(classifyChanges).toHaveBeenCalledWith(
+      [
+        { id: 'release-note:0', title: 'Add export support' },
+        { id: 'release-note:1', title: 'Update internal tooling' },
+      ],
+      { throwOnError: true },
+    );
+
+    expect(result.llm.new_section_markdown).toContain('- Add export support');
+    expect(result.llm.new_section_markdown).not.toContain(
+      'Update internal tooling',
+    );
+  });
+
+  test('keeps maintainer-only categories with the default audience', async () => {
+    const classifyChanges = jest.fn(async () => ({
+      assignments: {
+        'release-note:0': 'Added',
+        'release-note:1': SECTION_CHORE,
+      },
+      diagnostics: [],
+    }));
+
+    const result = await buildChangelogLlmOutput(
+      buildBaseParams({
+        releaseBody: [
+          "## What's Changed",
+          '- Add export support',
+          '- Update internal tooling',
+        ].join('\n'),
+        provider: { ...mockProvider, classifyChanges },
+        hasProviderKey: true,
+      }),
+    );
+
+    expect(result.llm.new_section_markdown).toContain('- Add export support');
+    expect(result.llm.new_section_markdown).toContain(
+      'Update internal tooling',
+    );
+  });
+    test.each([true, false])(
+    'applies user audience filtering with provider available=%s',
+    async (hasProviderKey) => {
+      const generate = jest.fn(async () => ({
+        changes: {
+          'commit:abcdef1': { title: 'add export support' },
+          'commit:abcdef2': { title: 'update internal tooling' },
+        },
+      }));
+
+      const result = await buildChangelogLlmOutput(
+        buildBaseParams({
+          audience: 'user',
+          hasProviderKey,
+          provider: { ...mockProvider, generate },
+          commitList: [
+            { sha: 'abcdef1', subject: 'feat: add export support' },
+            { sha: 'abcdef2', subject: 'chore: update internal tooling' },
+          ],
+        }),
+      );
+
+      expect(generate).toHaveBeenCalledTimes(hasProviderKey ? 1 : 0);
+      expect(result.aiUsed).toBe(hasProviderKey);
+
+      expect(result.draft?.assignments).toEqual({
+        'commit:abcdef1': 'Added',
+      });
+
+      expect(result.draft?.excludedChanges).toContainEqual(
+        expect.objectContaining({
+          change: expect.objectContaining({
+            id: 'commit:abcdef2',
+          }),
+          reason: 'filtered',
+          detail: 'audience:user',
+        }),
+      );
+
+      expect(result.llm.new_section_markdown).toContain(
+        'add export support',
+      );
+      expect(result.llm.new_section_markdown).not.toContain(
+        'update internal tooling',
+      );
+    },
+  );
+  
+  test('returns no-changes when all changes are filtered for user audience', async () => {
+    const result = await buildChangelogLlmOutput(
+      buildBaseParams({
+        audience: 'user',
+        noAi: true,
+        commitList: [
+          { sha: 'abcdef1', subject: 'chore: update internal tooling' },
+        ],
+      }),
+    );
+
+    expect(result.outcome?.kind).toBe('no-changes');
+    expect(result.llm.new_section_markdown).not.toContain(
+      'update internal tooling',
+    );
+  });
+
+      test('preserves additional release-note sections when all categorized changes are filtered', async () => {
+    const result = await buildChangelogLlmOutput(
+      buildBaseParams({
+        audience: 'user',
+        releaseBody: [
+          "## What's Changed",
+          '- Update internal tooling',
+          '',
+          '## Migration Notes',
+          'Existing configuration remains compatible.',
+        ].join('\n'),
+        provider: {
+          ...mockProvider,
+          classifyChanges: jest.fn(async () => ({
+            assignments: {
+              'release-note:0': SECTION_CHORE,
+            },
+            diagnostics: [],
+          })),
+        },
+        hasProviderKey: true,
+      }),
+    );
+
+    expect(result.llm.new_section_markdown).toContain(
+      'Migration Notes',
+    );
+    expect(result.llm.new_section_markdown).toContain(
+      'Existing configuration remains compatible.',
+    );
+    expect(result.llm.new_section_markdown).not.toContain(
+      'Update internal tooling',
+    );
+  });
+
 });
