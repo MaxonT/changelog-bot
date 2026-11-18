@@ -16,6 +16,7 @@ import {
   resolvedCustomization,
   unresolvedCustomization,
 } from '../fixtures/changelog-run.js';
+import { buildChangelogLlmOutput } from '@/utils/llm-output.js';
 
 const cli = createMockCliOptions();
 const appConfig = createMockAppConfig();
@@ -752,4 +753,180 @@ describe('executeChangelogRun', () => {
     );
     expect(log).not.toHaveBeenCalled();
   });
+  
+  test('writes a user-audience release while preserving previous releases', async () => {
+    const log = jest.fn<(message: string) => void>();
+    const writeChangelog = jest.fn<(path: string, content: string) => void>();
+
+    const existingChangelog = [
+      '# Changelog',
+      '',
+      '## [Unreleased]',
+      '',
+      '## [v1.2.2] - 2026-05-01',
+      '',
+      '### Added',
+      '- previous release feature',
+    ].join('\n');
+
+    const deps = createChangelogRunDeps(
+      {
+        prepareExistingChangelog: jest.fn(() => existingChangelog),
+        commitsInRange: jest.fn(() => [
+          { sha: 'abcdef1', subject: 'feat: add export support' },
+          { sha: 'abcdef2', subject: 'chore: update internal tooling' },
+        ]),
+        buildChangelogLlmOutput,
+        writeChangelog,
+      },
+      { useRealFinalization: true },
+    );
+
+    await executeChangelogRun({
+      cli: createMockCliOptions({
+        audience: 'user',
+        output: 'file',
+        dryRun: false,
+        noAi: true,
+        releaseBody: '',
+      }),
+      appConfig,
+      log,
+      deps,
+    });
+
+    expect(writeChangelog).toHaveBeenCalledTimes(1);
+    expect(writeChangelog).toHaveBeenCalledWith(
+      'CHANGELOG.md',
+      expect.any(String),
+    );
+
+    const written = writeChangelog.mock.calls[0][1];
+
+    expect(written).toContain('## [v1.2.3] - 2026-05-23');
+    expect(written).toContain('add export support');
+    expect(written).not.toContain('update internal tooling');
+
+    expect(written).toContain('## [v1.2.2] - 2026-05-01');
+    expect(written).toContain('previous release feature');
+
+    expect(deps.createPR).not.toHaveBeenCalled();
+  });
+
+  test('replaces only the matching version when regenerating with user audience', async () => {
+    const log = jest.fn<(message: string) => void>();
+    const writeChangelog = jest.fn<(path: string, content: string) => void>();
+
+    const existingChangelog = [
+      '# Changelog',
+      '',
+      '## [Unreleased]',
+      '',
+      '## [v1.2.3] - 2026-05-10',
+      '',
+      '### Added',
+      '- old all-audience feature',
+      '',
+      '### Chore',
+      '- old internal tooling',
+      '',
+      '## [v1.2.2] - 2026-05-01',
+      '',
+      '### Added',
+      '- previous release feature',
+    ].join('\n');
+
+    const deps = createChangelogRunDeps(
+      {
+        prepareExistingChangelog: jest.fn(() => existingChangelog),
+        commitsInRange: jest.fn(() => [
+          { sha: 'abcdef1', subject: 'feat: add export support' },
+          { sha: 'abcdef2', subject: 'chore: update internal tooling' },
+        ]),
+        buildChangelogLlmOutput,
+        writeChangelog,
+      },
+      { useRealFinalization: true },
+    );
+
+    await executeChangelogRun({
+      cli: createMockCliOptions({
+        audience: 'user',
+        output: 'file',
+        dryRun: false,
+        noAi: true,
+        releaseBody: '',
+      }),
+      appConfig,
+      log,
+      deps,
+    });
+
+    expect(writeChangelog).toHaveBeenCalledTimes(1);
+
+    const written = writeChangelog.mock.calls[0][1];
+
+    expect(written).toContain('## [v1.2.3] - 2026-05-23');
+    expect(written).toContain('add export support');
+    expect(written).not.toContain('old all-audience feature');
+    expect(written).not.toContain('old internal tooling');
+    expect(written).not.toContain('update internal tooling');
+
+    // The other release must remain untouched.
+    expect(written).toContain('## [v1.2.2] - 2026-05-01');
+    expect(written).toContain('previous release feature');
+
+    expect(deps.createPR).not.toHaveBeenCalled();
+  });
+
+  test('skips changelog writing and PR creation when all changes are filtered', async () => {
+    const log = jest.fn<(message: string) => void>();
+    const writeChangelog = jest.fn<(path: string, content: string) => void>();
+    const createPR = jest.fn(async () => 1);
+
+    const existingChangelog = [
+      '# Changelog',
+      '',
+      '## [Unreleased]',
+      '',
+      '## [v1.2.2] - 2026-05-01',
+      '',
+      '- previous release feature',
+    ].join('\n');
+
+    const deps = createChangelogRunDeps(
+      {
+        prepareExistingChangelog: jest.fn(() => existingChangelog),
+        commitsInRange: jest.fn(() => [
+          { sha: 'abcdef2', subject: 'chore: update internal tooling' },
+        ]),
+        buildChangelogLlmOutput,
+        writeChangelog,
+        createPR,
+      },
+      { useRealFinalization: true },
+    );
+
+    await executeChangelogRun({
+      cli: createMockCliOptions({
+        audience: 'user',
+        output: 'pull-request',
+        dryRun: false,
+        noAi: true,
+        releaseBody: '',
+      }),
+      appConfig,
+      log,
+      deps,
+    });
+
+    expect(writeChangelog).not.toHaveBeenCalled();
+    expect(createPR).not.toHaveBeenCalled();
+    expect(deps.ensureGithubTokenRequired).not.toHaveBeenCalled();
+
+    expect(log).toHaveBeenCalledWith(
+      'No changes found for release v1.2.3; skipping PR creation.',
+    );
+  });
+
 });
