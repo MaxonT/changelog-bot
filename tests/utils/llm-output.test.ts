@@ -676,7 +676,7 @@ describe('llm-output', () => {
     );
   });
 
-    test('preserves additional release-note sections when user audience filters all changes', async () => {
+      test('preserves additional release-note sections when all categorized changes are filtered', async () => {
     const result = await buildChangelogLlmOutput(
       buildBaseParams({
         audience: 'user',
@@ -687,6 +687,16 @@ describe('llm-output', () => {
           '## Migration Notes',
           'Existing configuration remains compatible.',
         ].join('\n'),
+        provider: {
+          ...mockProvider,
+          classifyChanges: jest.fn(async () => ({
+            assignments: {
+              'release-note:0': SECTION_CHORE,
+            },
+            diagnostics: [],
+          })),
+        },
+        hasProviderKey: true,
       }),
     );
 
