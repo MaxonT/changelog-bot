@@ -58,3 +58,16 @@ test('removes pre-existing duplicate sections', () => {
 
   expect(count).toBe(1);
 });
+
+test('re-running with the same section leaves the changelog unchanged', () => {
+  const version = '1.2.3';
+  const anchor = '## [Unreleased]';
+  const section = `## [v${version}] - 2024-01-01\n- foo`;
+  const existing = `${anchor}\n\n## [v1.2.2] - 2023-12-01\n- older\n`;
+
+  const first = applySection(existing, version, anchor, section);
+  const second = applySection(first, version, anchor, section);
+
+  expect(first).toContain(`- foo\n\n## [v1.2.2]`);
+  expect(second).toBe(first);
+});

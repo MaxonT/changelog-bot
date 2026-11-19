@@ -58,3 +58,43 @@ test('removeAllSections deletes duplicates and normalizes spacing', () => {
   // Unrelated sections remain
   expect(out.includes('## [v1.0.0]')).toBe(true);
 });
+
+test('replaceSection keeps the blank line before the next version heading', () => {
+  const before = [
+    '# Changelog',
+    '',
+    '## [v1.0.0]',
+    '- old line',
+    '',
+    '## [v0.9.0]',
+    '- keep this',
+    '',
+  ].join('\n');
+
+  const after = replaceSection(before, '1.0.0', '## [v1.0.0]\n- new line\n');
+
+  expect(after).toBe(
+    [
+      '# Changelog',
+      '',
+      '## [v1.0.0]',
+      '- new line',
+      '',
+      '## [v0.9.0]',
+      '- keep this',
+      '',
+    ].join('\n'),
+  );
+});
+
+test('replaceSection keeps the trailing newline of the last section', () => {
+  const before = ['# Changelog', '', '## [v1.0.0]', '- old line', ''].join(
+    '\n',
+  );
+
+  const after = replaceSection(before, '1.0.0', '## [v1.0.0]\n- new line');
+
+  expect(after).toBe(
+    ['# Changelog', '', '## [v1.0.0]', '- new line', ''].join('\n'),
+  );
+});
