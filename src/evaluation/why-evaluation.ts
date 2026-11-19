@@ -9,6 +9,29 @@ import { combinedWhyCandidateProbability } from '@/utils/why-candidate-probabili
 
 export type { WhyCounterfactualRole };
 
+/**
+ * Attribution of who authored the source candidate text.
+ * WHY: Separating authorship from fixture origin avoids assuming unverified legacy cases
+ * are human-written, while accurately identifying agent-authored PR descriptions.
+ */
+export type WhyAuthorship = 'human' | 'agent' | 'mixed' | 'unknown';
+
+/**
+ * How the evaluation fixture was constructed.
+ * WHY: Orthogonal to authorship — a real PR may be written by an agent, while a synthetic
+ * fixture may be hand-crafted to evaluate specific extraction bounds.
+ */
+export type WhyCaseOrigin = 'real' | 'synthetic';
+
+/**
+ * Categorical archetype for evaluating agent-written candidate rationales.
+ * - 'grounded-intent': Faithfully relays verifiable user/business motivation -> accept.
+ * - 'unsupported-plausible': Slick, convincing rationale without evidence in input -> reject.
+ * - 'implementation-only': Code/diff walkthrough without user-facing why -> reject.
+ */
+export type WhyAgentArchetype =
+  'grounded-intent' | 'unsupported-plausible' | 'implementation-only';
+
 // Array#indexOf uses this sentinel when generated text has no source candidate.
 const SOURCE_CANDIDATE_NOT_FOUND_INDEX = -1;
 
@@ -22,6 +45,12 @@ export type WhyEvaluationCase = {
   familyId?: string;
   /** Specific counterfactual role played by this variant. */
   counterfactualRole?: WhyCounterfactualRole;
+  /** Authorship attribution of the source candidate text. */
+  authorship?: WhyAuthorship;
+  /** Whether the case was derived from a real repository PR or synthetically constructed. */
+  origin?: WhyCaseOrigin;
+  /** Specific evaluation archetype for agent-written cases. */
+  archetype?: WhyAgentArchetype;
   /** Candidate material supplied to every evaluated extractor. */
   item: WhyExtractionItem;
   /** Expected accepted candidate index, or null when no WHY note is valid. */
@@ -103,6 +132,15 @@ export type WhyEvaluationMetrics = {
   missingReasonRejections: number;
   /** Fraction of missing-reason cases correctly rejected (null when denominator is zero). */
   missingReasonRejectionRate: number | null;
+  /** Negative cases authored by an agent (unsupported plausible rationale or implementation-only). */
+  agentNegativeCases: number;
+  /** Agent negative cases incorrectly accepted by the extractor. */
+  agentFalsePositives: number;
+  /**
+   * Fraction of agent negative cases incorrectly accepted (null when denominator is zero).
+   * WHY: Measures resilience against plausible agent hallucinations and code walkthroughs.
+   */
+  agentFalsePositiveRate: number | null;
   /** Per-case decisions used to diagnose metric changes. */
   outcomes: WhyEvaluationOutcome[];
 };
@@ -117,6 +155,12 @@ export type WhyEvaluationOutcome = {
   familyId?: string;
   /** Specific counterfactual role played by this variant. */
   counterfactualRole?: WhyCounterfactualRole;
+  /** Authorship attribution of the source candidate text. */
+  authorship?: WhyAuthorship;
+  /** Whether the case was derived from a real repository PR or synthetically constructed. */
+  origin?: WhyCaseOrigin;
+  /** Specific evaluation archetype for agent-written cases. */
+  archetype?: WhyAgentArchetype;
   /** Labeled candidate index, or null when no candidate should be selected. */
   expectedSelectedCandidateIndex: number | null;
   /** Whether the extractor returned a WHY note for this PR. */
@@ -316,6 +360,8 @@ export function evaluateWhySelections(
   let wrongChangeRejections = 0;
   let missingReasonRejections = 0;
   let totalMissingReasonCases = 0;
+  let agentNegativeCases = 0;
+  let agentFalsePositives = 0;
   const outcomes: WhyEvaluationOutcome[] = [];
 
   for (const evaluationCase of cases) {
@@ -352,6 +398,9 @@ export function evaluateWhySelections(
       prNumber: evaluationCase.item.prNumber,
       familyId: evaluationCase.familyId,
       counterfactualRole: evaluationCase.counterfactualRole,
+      authorship: evaluationCase.authorship,
+      origin: evaluationCase.origin,
+      archetype: evaluationCase.archetype,
       expectedSelectedCandidateIndex: expectedIndex,
       selected: predictedSelection,
       selectedCandidateIndex: selectedCandidateIndex ?? null,
@@ -365,6 +414,15 @@ export function evaluateWhySelections(
 
     if (evaluationCase.counterfactualRole === 'missing-reason') {
       totalMissingReasonCases += 1;
+    }
+
+    // WHY: Track agent negative cases (unsupported plausible rationales and implementation-only descriptions)
+    // to measure the agent false-positive rate.
+    if (evaluationCase.authorship === 'agent' && !expectedSelection) {
+      agentNegativeCases += 1;
+      if (predictedSelection) {
+        agentFalsePositives += 1;
+      }
     }
 
     if (expectedSelection && predictedSelection) {
@@ -435,6 +493,7 @@ export function evaluateWhySelections(
     missingReasonRejections,
     totalMissingReasonCases,
   );
+  const agentFalsePositiveRate = ratio(agentFalsePositives, agentNegativeCases);
 
   return {
     caseCount: cases.length,
@@ -464,6 +523,9 @@ export function evaluateWhySelections(
     wrongChangeAcceptanceRate,
     missingReasonRejections,
     missingReasonRejectionRate,
+    agentNegativeCases,
+    agentFalsePositives,
+    agentFalsePositiveRate,
     outcomes,
   };
 }

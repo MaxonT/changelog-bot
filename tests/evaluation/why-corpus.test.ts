@@ -14,7 +14,7 @@ import { evaluateJevConfidence } from '@/evaluation/why-evaluation.js';
 import type { WhySelectionDiagnostic } from '@/types/why.js';
 
 describe('WHY Evaluation Corpus Calibration (#205)', () => {
-  test('loads 70 benchmark cases (50 baseline + 20 counterfactual variants) from tests/fixtures/why-corpus.json', () => {
+  test('loads 85 benchmark cases (50 baseline + 20 counterfactual + 15 agent-written) from tests/fixtures/why-corpus.json', () => {
     const fixturePath = path.resolve(
       process.cwd(),
       'tests/fixtures/why-corpus.json',
@@ -22,8 +22,8 @@ describe('WHY Evaluation Corpus Calibration (#205)', () => {
     expect(fs.existsSync(fixturePath)).toBe(true);
 
     const corpus = loadWhyEvaluationCorpus(fixturePath);
-    expect(corpus).toHaveLength(70);
-    expect(WHY_EVALUATION_CORPUS).toHaveLength(70);
+    expect(corpus).toHaveLength(85);
+    expect(WHY_EVALUATION_CORPUS).toHaveLength(85);
   });
 
   test('enforces unique IDs and unique PR numbers across all cases', () => {
@@ -231,5 +231,54 @@ describe('Counterfactual WHY Case Families (#237)', () => {
         expect(negativeVariant.familyId).toBe(familyId);
       }
     }
+  });
+});
+
+describe('Agent-Written WHY Case Archetypes (#239)', () => {
+  test('includes 15 agent-written cases with explicit authorship, origin, and archetype', () => {
+    const agentCases = WHY_EVALUATION_CORPUS.filter(
+      (evaluationCase) => evaluationCase.authorship === 'agent',
+    );
+    expect(agentCases).toHaveLength(15);
+
+    for (const evaluationCase of agentCases) {
+      expect(evaluationCase.origin).toBe('synthetic');
+      expect(evaluationCase.archetype).toBeDefined();
+      expect(evaluationCase.item.candidates.length).toBeGreaterThanOrEqual(1);
+    }
+
+    const grounded = agentCases.filter(
+      (evaluationCase) => evaluationCase.archetype === 'grounded-intent',
+    );
+    const unsupported = agentCases.filter(
+      (evaluationCase) => evaluationCase.archetype === 'unsupported-plausible',
+    );
+    const implementationOnly = agentCases.filter(
+      (evaluationCase) => evaluationCase.archetype === 'implementation-only',
+    );
+
+    expect(grounded).toHaveLength(5);
+    expect(unsupported).toHaveLength(5);
+    expect(implementationOnly).toHaveLength(5);
+
+    // Grounded intent cases must be positive (verifiable human rationale present)
+    for (const evaluationCase of grounded) {
+      expect(evaluationCase.expectedSelectedCandidateIndex).toBe(0);
+    }
+
+    // Unsupported plausible and implementation-only cases must be negative
+    for (const evaluationCase of [...unsupported, ...implementationOnly]) {
+      expect(evaluationCase.expectedSelectedCandidateIndex).toBeNull();
+    }
+
+    // Includes multilingual (Japanese) agent cases across archetypes
+    const japaneseAgentCases = agentCases.filter(
+      (evaluationCase) =>
+        evaluationCase.id.includes('japanese') ||
+        /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(
+          evaluationCase.item.title,
+        ),
+    );
+    expect(japaneseAgentCases).toHaveLength(3);
   });
 });

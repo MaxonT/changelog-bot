@@ -1213,5 +1213,290 @@
       ]
     },
     "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-grounded-retry-jitter",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "grounded-intent",
+    "item": {
+      "prNumber": 90201,
+      "title": "feat(github): add exponential backoff with full jitter to API retries",
+      "itemText": "Add exponential backoff with full jitter to API retries",
+      "sectionTitle": "Added",
+      "trustScore": 10,
+      "trustBucket": "high",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Adds randomized exponential backoff to GitHub API retries to prevent thundering herd spikes during secondary rate limit incidents."
+      ]
+    },
+    "expectedSelectedCandidateIndex": 0
+  },
+  {
+    "id": "agent-grounded-timeout-config",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "grounded-intent",
+    "item": {
+      "prNumber": 90202,
+      "title": "feat(cli): allow configuring request timeout via CLI option",
+      "itemText": "Allow configuring request timeout via CLI option",
+      "sectionTitle": "Added",
+      "trustScore": 9,
+      "trustBucket": "high",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Allows configuring HTTP timeouts so slow corporate proxy connections do not abort changelog generation prematurely."
+      ]
+    },
+    "expectedSelectedCandidateIndex": 0
+  },
+  {
+    "id": "agent-grounded-cache-invalidation",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "grounded-intent",
+    "item": {
+      "prNumber": 90203,
+      "title": "fix(git): invalidate cached git references after remote fetch",
+      "itemText": "Invalidate cached git references after remote fetch",
+      "sectionTitle": "Fixed",
+      "trustScore": 9,
+      "trustBucket": "high",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Clears in-memory tag cache after fetching so consecutive runs recognize newly published tags immediately."
+      ]
+    },
+    "expectedSelectedCandidateIndex": 0
+  },
+  {
+    "id": "agent-grounded-sanitize-log-secrets",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "grounded-intent",
+    "item": {
+      "prNumber": 90204,
+      "title": "security: redact personal access tokens and auth headers in debug logs",
+      "itemText": "Redact personal access tokens and auth headers in debug logs",
+      "sectionTitle": "Fixed",
+      "trustScore": 10,
+      "trustBucket": "high",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Masks authorization tokens and API keys in debug logging to prevent credential exposure in public CI build logs."
+      ]
+    },
+    "expectedSelectedCandidateIndex": 0
+  },
+  {
+    "id": "agent-grounded-japanese-concurrency",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "grounded-intent",
+    "item": {
+      "prNumber": 90205,
+      "title": "feat(api): GitHubメタデータ取得の並行数を制限",
+      "itemText": "GitHubメタデータ取得の並行数を制限",
+      "sectionTitle": "Added",
+      "trustScore": 9,
+      "trustBucket": "high",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "GitHub APIの二次レート制限を回避し、大規模リポジトリでも安定してPR情報を取得できるようにするため。"
+      ]
+    },
+    "expectedSelectedCandidateIndex": 0
+  },
+  {
+    "id": "agent-unsupported-memory-leak-speculation",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "unsupported-plausible",
+    "item": {
+      "prNumber": 90206,
+      "title": "refactor(utils): convert forEach callbacks to for-of loops",
+      "itemText": "Convert forEach callbacks to for-of loops",
+      "sectionTitle": "Changed",
+      "trustScore": 7,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Eliminates potential memory leaks and reduces garbage collector pressure by avoiding nested closure allocations on large collections."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-unsupported-throughput-claim",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "unsupported-plausible",
+    "item": {
+      "prNumber": 90207,
+      "title": "chore(deps): update fast-glob to latest patch release",
+      "itemText": "Update fast-glob to latest patch release",
+      "sectionTitle": "Chore",
+      "trustScore": 6,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Dramatically accelerates glob pattern resolution and eliminates I/O bottlenecks across multi-package workspaces."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-unsupported-security-hardening-claim",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "unsupported-plausible",
+    "item": {
+      "prNumber": 90208,
+      "title": "style: normalize markdown table border spacing",
+      "itemText": "Normalize markdown table border spacing",
+      "sectionTitle": "Changed",
+      "trustScore": 6,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Hardens markdown rendering against remote buffer overflow attacks caused by malformed unicode table alignments."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-unsupported-race-condition-conjecture",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "unsupported-plausible",
+    "item": {
+      "prNumber": 90209,
+      "title": "refactor(auth): simplify promise chaining in token resolver",
+      "itemText": "Simplify promise chaining in token resolver",
+      "sectionTitle": "Changed",
+      "trustScore": 7,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Prevents subtle distributed race conditions between concurrent authentication token refreshes across cluster nodes."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-unsupported-japanese-cache-optimization",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "unsupported-plausible",
+    "item": {
+      "prNumber": 90210,
+      "title": "chore(deps): lodash-esのパッチバージョンを更新",
+      "itemText": "lodash-esのパッチバージョンを更新",
+      "sectionTitle": "Chore",
+      "trustScore": 6,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "高トラフィック環境におけるV8エンジンのインラインキャッシュ効率を最大化し、JSONパースのボトルネックを解消するため。"
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-impl-loop-to-map-walkthrough",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "implementation-only",
+    "item": {
+      "prNumber": 90211,
+      "title": "refactor(markdown): format changelog section lines",
+      "itemText": "Format changelog section lines",
+      "sectionTitle": "Changed",
+      "trustScore": 7,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Iterates through the changes array using Array.prototype.map and joins each rendered string with newline characters."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-impl-split-file-helpers",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "implementation-only",
+    "item": {
+      "prNumber": 90212,
+      "title": "refactor(git): extract commit parsing logic into git-commits module",
+      "itemText": "Extract commit parsing logic into git-commits module",
+      "sectionTitle": "Changed",
+      "trustScore": 7,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Moves parseCommitLine and splitGitLog functions from git.ts into git-commits.ts and exports them as pure utilities."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-impl-add-interface-fields",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "implementation-only",
+    "item": {
+      "prNumber": 90213,
+      "title": "feat(types): add optional includePrBody flag to ReleaseContextOptions",
+      "itemText": "Add optional includePrBody flag to ReleaseContextOptions",
+      "sectionTitle": "Added",
+      "trustScore": 7,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Adds includePrBody?: boolean to the ReleaseContextOptions interface in src/types/release.ts and passes it to fetchPullRequest."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-impl-rename-internal-methods",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "implementation-only",
+    "item": {
+      "prNumber": 90214,
+      "title": "refactor: rename maskSecret to redactCredential",
+      "itemText": "Rename maskSecret to redactCredential",
+      "sectionTitle": "Changed",
+      "trustScore": 7,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "Renames maskSecret function to redactCredential in src/utils/sanitize.ts and updates all 12 imported call sites."
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
+  },
+  {
+    "id": "agent-impl-japanese-variable-extraction",
+    "authorship": "agent",
+    "origin": "synthetic",
+    "archetype": "implementation-only",
+    "item": {
+      "prNumber": 90215,
+      "title": "リファクタ: 設定ファイルのバリデーション関数を切り出し",
+      "itemText": "設定ファイルのバリデーション関数を切り出し",
+      "sectionTitle": "Changed",
+      "trustScore": 7,
+      "trustBucket": "medium",
+      "requiresHighConfidence": false,
+      "candidates": [
+        "loadConfig関数からバリデーションロジックをvalidateConfigFile関数として別ファイルに切り出し、戻り値の型定義を更新した。"
+      ]
+    },
+    "expectedSelectedCandidateIndex": null
   }
 ]
