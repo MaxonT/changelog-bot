@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { test, expect } from '@jest/globals';
-import { diffChangelog } from '@/lib/changelog.js';
+import { diffChangelog, diffChangelogLines } from '@/lib/changelog.js';
 
 test('emits only context lines when texts are identical', () => {
   const oldText = ['# Changelog', '', '## [v1.0.0]', '- init'].join('\n');
@@ -54,4 +54,16 @@ test('line change renders as -old and +new', () => {
   const diff = diffChangelog(oldText, newText);
   expect(diff.includes('-x')).toBe(true);
   expect(diff.includes('+y')).toBe(true);
+});
+
+test('diffChangelogLines returns the diff body without file headers', () => {
+  const oldText = ['a', 'b'].join('\n');
+  const newText = ['a', 'x', 'b'].join('\n');
+
+  const lines = diffChangelogLines(oldText, newText);
+
+  expect(lines).toEqual([' a', '+x', ' b']);
+  expect(diffChangelog(oldText, newText)).toBe(
+    ['--- a/CHANGELOG.md', '+++ b/CHANGELOG.md', ...lines].join('\n'),
+  );
 });

@@ -73,6 +73,25 @@ export const CliOptionsSchema = z
         message: `${conflictingOption} cannot be combined with --output ${options.output}`,
       });
     }
+    if (options.check) {
+      // WHY: Check mode only compares and never delivers, so a dry run or a
+      // non-default destination would be silently ignored instead of honored.
+      const conflictingOption = options.dryRun
+        ? '--dry-run'
+        : options.dryRunJsonReport
+          ? '--dry-run-json-report'
+          : options.output !== DEFAULT_OUTPUT_DESTINATION
+            ? `--output ${options.output}`
+            : undefined;
+
+      if (conflictingOption) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['check'],
+          message: `--check cannot be combined with ${conflictingOption}`,
+        });
+      }
+    }
   });
 
 export type CliOptions = z.infer<typeof CliOptionsSchema>;

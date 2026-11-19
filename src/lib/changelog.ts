@@ -1,5 +1,5 @@
 export { computeChangelog } from '@/lib/changelog-compute.js';
-export { diffChangelog } from '@/lib/changelog-diff.js';
+export { diffChangelog, diffChangelogLines } from '@/lib/changelog-diff.js';
 export { readChangelog, writeChangelog } from '@/lib/changelog-file.js';
 export {
   ensureCompareLinks,

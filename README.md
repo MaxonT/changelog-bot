@@ -121,7 +121,10 @@ confirm whether an LLM request was used or the run fell back. Add
 Use `--check` in CI to verify that the committed changelog matches what the CLI
 would generate. It writes no file, creates no branch or pull request, exits `0`
 when the changelog is current, and exits non-zero with a diff when it is missing
-or out of date.
+or out of date. The diff preview lists only added and removed lines. Because it
+never writes or delivers anything, `--check` cannot be combined with
+`--dry-run`, `--dry-run-json-report`, or `--output file|stdout`; those
+combinations exit with a usage error instead of being ignored.
 
 **Output destinations**
 
@@ -400,14 +403,14 @@ Codes `64` and `65` follow the common POSIX `sysexits` convention
 for changelog-bot-specific provider and schema failures. Code `1` is kept for
 unexpected errors that are not yet classified.
 
-| Code | Meaning                   | Typical cause                                                             |
-| ---- | ------------------------- | ------------------------------------------------------------------------- |
-| `0`  | Success                   | Changelog was generated, dry-run completed, or `--check` found no drift.  |
-| `1`  | Unexpected error          | Unclassified runtime failure.                                             |
-| `64` | Usage/configuration error | Invalid CLI/config values, missing repo identity, or missing GitHub auth. |
+| Code | Meaning                   | Typical cause                                                                 |
+| ---- | ------------------------- | ----------------------------------------------------------------------------- |
+| `0`  | Success                   | Changelog was generated, dry-run completed, or `--check` found no drift.      |
+| `1`  | Unexpected error          | Unclassified runtime failure.                                                 |
+| `64` | Usage/configuration error | Invalid CLI/config values, missing repo identity, or missing GitHub auth.     |
 | `65` | Repository/data error     | Invalid repository state, Git data needed for generation, or `--check` drift. |
-| `66` | Provider failure          | LLM generation/classification/WHY extraction failed in strict mode.       |
-| `67` | Output validation failure | Provider output did not match the expected schema after retry.            |
+| `66` | Provider failure          | LLM generation/classification/WHY extraction failed in strict mode.           |
+| `67` | Output validation failure | Provider output did not match the expected schema after retry.                |
 
 The CLI prints the actionable error message to stderr before exiting. Use
 `--dry-run` to preview without requiring GitHub write authentication, or provide

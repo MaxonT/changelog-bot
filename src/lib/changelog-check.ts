@@ -1,4 +1,4 @@
-import { diffChangelog } from '@/lib/changelog-diff.js';
+import { diffChangelogLines } from '@/lib/changelog-diff.js';
 
 const MAX_REPORTED_DIFF_LINES = 40;
 
@@ -15,8 +15,8 @@ export type ChangelogCheckResult =
       status: 'out-of-date';
       /** Path to the compared changelog file. */
       changelogPath: string;
-      /** Line-level diff between committed and generated content. */
-      diff: string;
+      /** Line-level diff between committed and generated content, without file headers. */
+      diffLines: string[];
     }
   | {
       /** No changelog file exists at the configured path. */
@@ -59,7 +59,7 @@ export function evaluateChangelogCheck(
   return {
     status: 'out-of-date',
     changelogPath,
-    diff: diffChangelog(actualChangelog, generatedChangelog),
+    diffLines: diffChangelogLines(actualChangelog, generatedChangelog),
   };
 }
 
@@ -77,15 +77,18 @@ export function formatChangelogCheckFailure(
     return `Changelog check failed: ${result.changelogPath} does not exist.`;
   }
 
-  // WHY: diffChangelog emits a two-line file header before the hunks; the
-  // configured changelog path in the message takes its place.
-  const diffLines = result.diff.split('\n').slice(2);
-  const displayedLines = diffLines.slice(0, MAX_REPORTED_DIFF_LINES);
-  const remainingCount = diffLines.length - displayedLines.length;
+  // WHY: The diff carries every unchanged line as context, so a preview cut
+  // from the top can be all context when the drift sits deep in the file.
+  // Only added and removed lines tell CI which lines to fix.
+  const changedLines = result.diffLines.filter(
+    (line) => line.startsWith('+') || line.startsWith('-'),
+  );
+  const displayedLines = changedLines.slice(0, MAX_REPORTED_DIFF_LINES);
+  const remainingCount = changedLines.length - displayedLines.length;
   const preview = displayedLines.join('\n');
   const overflowNotice =
     remainingCount > 0
-      ? `\n... (${remainingCount} more diff lines omitted)`
+      ? `\n... (${remainingCount} more changed lines omitted)`
       : '';
 
   return [

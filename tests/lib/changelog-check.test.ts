@@ -1,15 +1,23 @@
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, jest, test } from '@jest/globals';
 
-import {
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseCliArgs } from '@/lib/cli-args.js';
 import { executeChangelogRun } from '@/lib/changelog-run.js';
+import {
+  evaluateChangelogCheck,
+  formatChangelogCheckFailure,
+} from '@/lib/changelog-check.js';
+import { writeChangelog } from '@/lib/changelog-file.js';
+import { prepareExistingChangelog } from '@/lib/release-context.js';
+import { buildChangelogLlmOutput } from '@/utils/llm-output.js';
+import {
+  createChangelogRunDeps,
+  createMockAppConfig,
+  createMockCliOptions,
+  createMockReleasePlan,
+} from '../fixtures/changelog-run.js';
 import { ChangelogDriftError, mapErrorToExitCode } from '@/lib/errors.js';
 import { CliOptionsSchema, type CliOptions } from '@/schema/cli.js';
 import { PROVIDER_OPENAI } from '@/constants/provider.js';
@@ -241,9 +249,7 @@ describe('changelog check mode', () => {
         `${temp.changelogPath} is out of date`,
       );
       expect((error as Error).message).toContain('+## [v1.2.3] - 2026-11-18');
-      expect(readFileSync(temp.changelogPath, 'utf8')).toBe(
-        committedChangelog,
-      );
+      expect(readFileSync(temp.changelogPath, 'utf8')).toBe(committedChangelog);
     } finally {
       rmSync(temp.directory, { recursive: true, force: true });
     }
@@ -264,6 +270,199 @@ describe('changelog check mode', () => {
       expect((error as Error).message).toContain(
         `${temp.changelogPath} does not exist`,
       );
+    } finally {
+      rmSync(temp.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('changelog check failure preview', () => {
+  test('previews changed lines when the drift follows many unchanged lines', () => {
+    const unchanged = Array.from(
+      { length: 50 },
+      (_, index) => `- unchanged entry ${index + 1}`,
+    );
+    const committedChangelog = [
+      '# Changelog',
+      ...unchanged,
+      '- committed entry',
+      '',
+    ].join('\n');
+    const generatedChangelog = [
+      '# Changelog',
+      ...unchanged,
+      '- generated entry',
+      '',
+    ].join('\n');
+
+    const result = evaluateChangelogCheck({
+      changelogPath: 'CHANGELOG.md',
+      fileExists: true,
+      actualChangelog: committedChangelog,
+      generatedChangelog,
+    });
+
+    expect(result.status).toBe('out-of-date');
+    if (result.status !== 'out-of-date') return;
+
+    const message = formatChangelogCheckFailure(result);
+
+    expect(message).toContain('-- committed entry');
+    expect(message).toContain('+- generated entry');
+    expect(message).not.toContain('unchanged entry');
+    expect(message).not.toContain('--- a/CHANGELOG.md');
+    expect(message).not.toContain('+++ b/CHANGELOG.md');
+  });
+
+  test('caps the preview and counts the changed lines left out', () => {
+    const generatedChangelog = Array.from(
+      { length: 45 },
+      (_, index) => `- generated entry ${index + 1}`,
+    ).join('\n');
+
+    const result = evaluateChangelogCheck({
+      changelogPath: 'CHANGELOG.md',
+      fileExists: true,
+      actualChangelog: '# Changelog',
+      generatedChangelog,
+    });
+
+    expect(result.status).toBe('out-of-date');
+    if (result.status !== 'out-of-date') return;
+
+    const message = formatChangelogCheckFailure(result);
+
+    // 45 additions plus the removed heading: 46 changed lines, 40 shown.
+    expect(message).toContain('-# Changelog');
+    expect(message).toContain('+- generated entry 39');
+    expect(message).not.toContain('+- generated entry 40');
+    expect(message).toContain('... (6 more changed lines omitted)');
+  });
+});
+
+describe('changelog check mode with real generation and finalization', () => {
+  const previousRelease = [
+    '# Changelog',
+    '',
+    '## [Unreleased]',
+    '',
+    '## [v1.2.2] - 2026-05-01',
+    '',
+    '### Added',
+    '- previous release feature',
+    '',
+  ].join('\n');
+
+  function createRealRunDeps(
+    changelogPath: string,
+    overrides: Parameters<typeof createChangelogRunDeps>[0] = {},
+  ) {
+    // WHY: Only Git and GitHub stay mocked; reading, generating, finalizing
+    // and writing the changelog all run the production code paths.
+    return createChangelogRunDeps(
+      {
+        resolveReleasePlan: jest.fn(() =>
+          createMockReleasePlan({ changelogPath }),
+        ),
+        prepareExistingChangelog,
+        commitsInRange: jest.fn(() => [
+          { sha: 'abcdef1', subject: 'feat: add export support' },
+          { sha: 'abcdef2', subject: 'fix: handle empty exports' },
+        ]),
+        buildChangelogLlmOutput,
+        ...overrides,
+      },
+      { useRealFinalization: true },
+    );
+  }
+
+  function createReleaseCli(
+    changelogPath: string,
+    overrides: Partial<CliOptions>,
+  ): CliOptions {
+    return createMockCliOptions({
+      changelogPath,
+      dryRun: false,
+      noAi: true,
+      releaseBody: '',
+      ...overrides,
+    });
+  }
+
+  test('passes on a freshly generated changelog and fails once an entry is edited', async () => {
+    const appConfig = createMockAppConfig();
+    const temp = createTempChangelog(previousRelease);
+
+    try {
+      // 1. Generate the changelog the way a release would, writing the file.
+      await executeChangelogRun({
+        cli: createReleaseCli(temp.changelogPath, { output: 'file' }),
+        appConfig,
+        log: jest.fn(),
+        deps: createRealRunDeps(temp.changelogPath, { writeChangelog }),
+      });
+
+      const generated = readFileSync(temp.changelogPath, 'utf8');
+      expect(generated).not.toBe(previousRelease);
+      expect(generated).toContain('## [v1.2.3]');
+      expect(generated).toContain('add export support');
+      expect(generated).toContain('previous release feature');
+
+      // 2. Check the same release inputs against the generated file.
+      const checkWrite = jest.fn<(path: string, content: string) => void>();
+      const checkDeps = createRealRunDeps(temp.changelogPath, {
+        writeChangelog: checkWrite,
+      });
+      const checkLog = jest.fn<(message: string) => void>();
+
+      await executeChangelogRun({
+        cli: createReleaseCli(temp.changelogPath, { check: true }),
+        appConfig,
+        log: checkLog,
+        deps: checkDeps,
+      });
+
+      expect(checkLog).toHaveBeenCalledWith(
+        `${temp.changelogPath} is up to date.`,
+      );
+      expect(readFileSync(temp.changelogPath, 'utf8')).toBe(generated);
+
+      // 3. Edit a generated release entry by hand.
+      const edited = generated.replace(
+        'add export support',
+        'add export support (edited by hand)',
+      );
+      expect(edited).not.toBe(generated);
+      writeFileSync(temp.changelogPath, edited, 'utf8');
+
+      // 4. The same check now reports drift.
+      const driftDeps = createRealRunDeps(temp.changelogPath, {
+        writeChangelog: checkWrite,
+      });
+      const error = await executeChangelogRun({
+        cli: createReleaseCli(temp.changelogPath, { check: true }),
+        appConfig,
+        log: jest.fn(),
+        deps: driftDeps,
+      }).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toBeInstanceOf(ChangelogDriftError);
+      expect((error as Error).message).toContain(
+        `${temp.changelogPath} is out of date`,
+      );
+      expect((error as Error).message).toContain('(edited by hand)');
+
+      // 5. Neither check run modified the file or tried to deliver anything.
+      expect(readFileSync(temp.changelogPath, 'utf8')).toBe(edited);
+      expect(checkWrite).not.toHaveBeenCalled();
+      for (const deps of [checkDeps, driftDeps]) {
+        expect(deps.createPR).not.toHaveBeenCalled();
+        expect(deps.ensureGithubTokenRequired).not.toHaveBeenCalled();
+        expect(deps.writeStdout).not.toHaveBeenCalled();
+      }
     } finally {
       rmSync(temp.directory, { recursive: true, force: true });
     }
