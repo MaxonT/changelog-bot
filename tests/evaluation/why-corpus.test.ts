@@ -281,4 +281,97 @@ describe('Agent-Written WHY Case Archetypes (#239)', () => {
     );
     expect(japaneseAgentCases).toHaveLength(3);
   });
+
+  test('records evaluation-only ground-truth context and keeps it isolated from extractor input', () => {
+    const agentCases = WHY_EVALUATION_CORPUS.filter(
+      (evaluationCase) => evaluationCase.authorship === 'agent',
+    );
+
+    for (const evaluationCase of agentCases) {
+      // Ground truth context must be present on the case to document verified intent and evidence
+      expect(evaluationCase.groundTruthContext).toBeDefined();
+      expect(typeof evaluationCase.groundTruthContext?.verifiedIntent).toBe(
+        'string',
+      );
+      expect(typeof evaluationCase.groundTruthContext?.observableEvidence).toBe(
+        'string',
+      );
+      expect(typeof evaluationCase.groundTruthContext?.rationaleNote).toBe(
+        'string',
+      );
+
+      // Crucially, ground-truth metadata must NEVER be placed on item (which is what extractors receive)
+      const itemAsRecord = evaluationCase.item as unknown as Record<
+        string,
+        unknown
+      >;
+      expect(itemAsRecord['groundTruthContext']).toBeUndefined();
+      expect(itemAsRecord['verifiedIntent']).toBeUndefined();
+      expect(itemAsRecord['evaluationTier']).toBeUndefined();
+    }
+  });
+
+  test('balances trust scores across archetypes so trustScore does not correlate with ground truth', () => {
+    const agentCases = WHY_EVALUATION_CORPUS.filter(
+      (evaluationCase) => evaluationCase.authorship === 'agent',
+    );
+
+    const grounded = agentCases.filter(
+      (evaluationCase) => evaluationCase.archetype === 'grounded-intent',
+    );
+    const unsupported = agentCases.filter(
+      (evaluationCase) => evaluationCase.archetype === 'unsupported-plausible',
+    );
+    const implementationOnly = agentCases.filter(
+      (evaluationCase) => evaluationCase.archetype === 'implementation-only',
+    );
+
+    const groundedScores = grounded.map((c) => c.item.trustScore);
+    const unsupportedScores = unsupported.map((c) => c.item.trustScore);
+    const implScores = implementationOnly.map((c) => c.item.trustScore);
+
+    // High trust (9-10) is present in both grounded positives and unsupported negatives
+    expect(groundedScores.some((score) => score >= 9)).toBe(true);
+    expect(unsupportedScores.some((score) => score >= 9)).toBe(true);
+    expect(implScores.some((score) => score >= 9)).toBe(true);
+
+    // Overlapping trust score values exist between positives and negatives
+    const sharedScores = groundedScores.filter((score) =>
+      unsupportedScores.includes(score),
+    );
+    expect(sharedScores.length).toBeGreaterThanOrEqual(3);
+
+    // All agent cases belong to user-facing sections (Added, Fixed, Changed) - no excluded Chore items
+    for (const evaluationCase of agentCases) {
+      expect(['Added', 'Fixed', 'Changed']).toContain(
+        evaluationCase.item.sectionTitle,
+      );
+      expect(evaluationCase.item.sectionTitle).not.toBe('Chore');
+    }
+  });
+
+  test('distinguishes ordinary regression cases from exploratory limitation cases', () => {
+    const agentCases = WHY_EVALUATION_CORPUS.filter(
+      (evaluationCase) => evaluationCase.authorship === 'agent',
+    );
+
+    const regressionCases = agentCases.filter(
+      (evaluationCase) => evaluationCase.evaluationTier === 'regression',
+    );
+    const limitationCases = agentCases.filter(
+      (evaluationCase) => evaluationCase.evaluationTier === 'limitation',
+    );
+
+    expect(regressionCases.length).toBe(13);
+    expect(limitationCases.length).toBe(2);
+
+    for (const limitationCase of limitationCases) {
+      // Limitation cases represent challenging plausible negatives where observable input alone is ambiguous
+      expect(limitationCase.archetype).toBe('unsupported-plausible');
+      expect(limitationCase.expectedSelectedCandidateIndex).toBeNull();
+      expect(limitationCase.groundTruthContext?.rationaleNote).toMatch(
+        /limitation/i,
+      );
+    }
+  });
 });

@@ -32,6 +32,32 @@ export type WhyCaseOrigin = 'real' | 'synthetic';
 export type WhyAgentArchetype =
   'grounded-intent' | 'unsupported-plausible' | 'implementation-only';
 
+/**
+ * Benchmark evaluation tier or purpose.
+ * - 'regression': Standard regression benchmark case where observable input is sufficient to decide.
+ * - 'limitation': Exploratory case exposing fundamental boundaries (e.g. observable input is ambiguous
+ *   or identical across different hidden human intents, so an extractor cannot reliably decide without hidden context).
+ */
+export type WhyEvaluationTier = 'regression' | 'limitation';
+
+/**
+ * Ground-truth intent and evidence metadata establishing the benchmark label.
+ * WHY: Kept strictly outside `item` so it is NEVER passed to the evaluated extractor.
+ * This documents why the case is labeled positive or negative, distinguishing verified
+ * human intent from unverified agent claims.
+ */
+export type WhyGroundTruthContext = {
+  /** Summary of verified human intent, user bug report, or issue context. */
+  verifiedIntent?: string;
+  /**
+   * Observable evidence supporting the ground truth within the candidate inputs.
+   * If empty or absent for a negative case, indicates no observable backing exists.
+   */
+  observableEvidence?: string;
+  /** Explanation of why this label is assigned (e.g. rationale for positive or negative). */
+  rationaleNote?: string;
+};
+
 // Array#indexOf uses this sentinel when generated text has no source candidate.
 const SOURCE_CANDIDATE_NOT_FOUND_INDEX = -1;
 
@@ -51,6 +77,13 @@ export type WhyEvaluationCase = {
   origin?: WhyCaseOrigin;
   /** Specific evaluation archetype for agent-written cases. */
   archetype?: WhyAgentArchetype;
+  /** Evaluation tier: 'regression' (default) or 'limitation' (exploratory boundary). */
+  evaluationTier?: WhyEvaluationTier;
+  /**
+   * Ground-truth context documenting the verified human intent and evidence establishing this label.
+   * WHY: Strictly evaluation-only metadata; never passed to the extractor.
+   */
+  groundTruthContext?: WhyGroundTruthContext;
   /** Candidate material supplied to every evaluated extractor. */
   item: WhyExtractionItem;
   /** Expected accepted candidate index, or null when no WHY note is valid. */
@@ -161,6 +194,10 @@ export type WhyEvaluationOutcome = {
   origin?: WhyCaseOrigin;
   /** Specific evaluation archetype for agent-written cases. */
   archetype?: WhyAgentArchetype;
+  /** Evaluation tier: 'regression' or 'limitation'. */
+  evaluationTier?: WhyEvaluationTier;
+  /** Ground-truth context documenting the verified human intent and evidence. */
+  groundTruthContext?: WhyGroundTruthContext;
   /** Labeled candidate index, or null when no candidate should be selected. */
   expectedSelectedCandidateIndex: number | null;
   /** Whether the extractor returned a WHY note for this PR. */
@@ -401,6 +438,8 @@ export function evaluateWhySelections(
       authorship: evaluationCase.authorship,
       origin: evaluationCase.origin,
       archetype: evaluationCase.archetype,
+      evaluationTier: evaluationCase.evaluationTier,
+      groundTruthContext: evaluationCase.groundTruthContext,
       expectedSelectedCandidateIndex: expectedIndex,
       selected: predictedSelection,
       selectedCandidateIndex: selectedCandidateIndex ?? null,
