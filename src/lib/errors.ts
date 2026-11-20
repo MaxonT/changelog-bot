@@ -59,6 +59,13 @@ export class ReleaseValidationError extends AppError {
   }
 }
 
+/** Committed changelog drift detected by `--check`. */
+export class ChangelogDriftError extends AppError {
+  constructor(message: string) {
+    super(message, EXIT_DATA);
+  }
+}
+
 /**
  * Map unknown errors to a stable process exit code.
  * @param error Arbitrary thrown value.

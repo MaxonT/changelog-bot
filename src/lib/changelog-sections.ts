@@ -125,7 +125,13 @@ export function replaceSection(
 ): string {
   const regExp = buildVersionSectionRegExp(version, 'm');
   if (!regExp.test(content)) return content;
-  return content.replace(regExp, newSection.trim());
+  return content.replace(regExp, (section) => {
+    // WHY: The match runs up to the next heading, so it includes the blank
+    // lines separating this section from the next one. Keep them, or the
+    // replacement runs straight into the following heading.
+    const separator = section.slice(section.trimEnd().length);
+    return `${newSection.trim()}${separator}`;
+  });
 }
 
 /**

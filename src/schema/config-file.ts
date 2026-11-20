@@ -52,6 +52,10 @@ export const CliConfigFileSchema = z
       .enum(AUDIENCES)
       .optional()
       .describe('Audience for generated changelog content (all|user).'),
+    check: z
+      .boolean()
+      .optional()
+      .describe('Exit non-zero when the CHANGELOG differs from generated content.'),
     dryRun: z
       .boolean()
       .optional()

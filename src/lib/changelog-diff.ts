@@ -1,3 +1,5 @@
+const DIFF_FILE_HEADER = ['--- a/CHANGELOG.md', '+++ b/CHANGELOG.md'];
+
 /**
  * Create a simple unified-style diff between two strings.
  * @param oldText Original text (left side).
@@ -5,7 +7,20 @@
  * @returns Unified diff as a string with simple +/-/ context lines.
  */
 export function diffChangelog(oldText: string, newText: string): string {
-  const header = ['--- a/CHANGELOG.md', '+++ b/CHANGELOG.md'];
+  return [...DIFF_FILE_HEADER, ...diffChangelogLines(oldText, newText)].join(
+    '\n',
+  );
+}
+
+/**
+ * Compute the body of a changelog diff without the file header lines.
+ * WHY: Callers that print their own context (such as `--check`) need the
+ * diff lines alone, without depending on how many header lines precede them.
+ * @param oldText Original text (left side).
+ * @param newText Updated text (right side).
+ * @returns Diff lines, each prefixed with ` ` (context), `-` (removed) or `+` (added).
+ */
+export function diffChangelogLines(oldText: string, newText: string): string[] {
   const oldLines = oldText.split('\n');
   const newLines = newText.split('\n');
 
@@ -14,16 +29,16 @@ export function diffChangelog(oldText: string, newText: string): string {
 
   // Fast paths / early returns
   if (oldText === newText) {
-    return header.concat(oldLines.map((line) => ' ' + line)).join('\n');
+    return oldLines.map((line) => ' ' + line);
   }
   if (oldLen === 0 && newLen === 0) {
-    return header.join('\n');
+    return [];
   }
   if (oldLen === 0) {
-    return header.concat(newLines.map((line) => '+' + line)).join('\n');
+    return newLines.map((line) => '+' + line);
   }
   if (newLen === 0) {
-    return header.concat(oldLines.map((line) => '-' + line)).join('\n');
+    return oldLines.map((line) => '-' + line);
   }
 
   // Build the Longest Common Subsequence (LCS) matrix.
@@ -44,7 +59,7 @@ export function diffChangelog(oldText: string, newText: string): string {
   }
 
   // Reconstruct diff from the LCS matrix.
-  const diffLines: string[] = [...header];
+  const diffLines: string[] = [];
   const addContext = (line: string) => diffLines.push(' ' + line);
   const addRemoval = (line: string) => diffLines.push('-' + line);
   const addAddition = (line: string) => diffLines.push('+' + line);
@@ -72,5 +87,5 @@ export function diffChangelog(oldText: string, newText: string): string {
     addAddition(newLines[newIndex]);
     newIndex++;
   }
-  return diffLines.join('\n');
+  return diffLines;
 }
