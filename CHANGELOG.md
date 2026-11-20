@@ -5,6 +5,219 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.12.0] - 2026-11-19
+
+### Added
+
+- explore linked issues as WHY evidence sources (#236) by @johnnylemonny in [#298](https://github.com/necoz-oss/changelog-bot/pull/298)
+  - Why: Explores linked GitHub issues as additional explicit evidence sources for WHY extraction, addressing #236.
+- separate generation from delivery to support file and stdout destinations by @johnnylemonny in [#302](https://github.com/necoz-oss/changelog-bot/pull/302)
+  - Why: This PR separates changelog generation from delivery to support file and stdout output destinations.
+- discriminate wrong-candidate selections and track counterfactual rejection metrics (#237) by @johnnylemonny in [#310](https://github.com/necoz-oss/changelog-bot/pull/310)
+- added a little helper function to avoid deduplication in metadata di… by @WebWizard5243 in [#325](https://github.com/necoz-oss/changelog-bot/pull/325)
+  - Why: Adds a helper function to avoid deduplication in metadata diagnostics while preserving existing behavior.
+- add changelog audience policy in separate branch by @sorathiya903 in [#367](https://github.com/necoz-oss/changelog-bot/pull/367)
+
+### Fixed
+
+- mitigate vulnerable development dependencies by @nyaomaru in [#300](https://github.com/necoz-oss/changelog-bot/pull/300)
+- name the conflicting dry-run option by @GyulianoDev in [#307](https://github.com/necoz-oss/changelog-bot/pull/307)
+  - Why: Fixes the validation message to correctly identify the conflicting option used in the CLI.
+- append a bullet repeated inside one batch only once by @noahkhomer18 in [#324](https://github.com/necoz-oss/changelog-bot/pull/324)
+  - Why: Fixes the issue of appending duplicate bullet points in changelog entries to ensure uniqueness.
+- reject malformed repository names by @enidchen0125 in [#339](https://github.com/necoz-oss/changelog-bot/pull/339)
+- skip PR linking inside fenced code blocks by @dbdefault in [#345](https://github.com/necoz-oss/changelog-bot/pull/345)
+  - Why: Modifies the PR linking function to skip changes inside fenced code blocks to preserve code examples.
+- preserve unknown category headings during normalization by @xryanlee in [#358](https://github.com/necoz-oss/changelog-bot/pull/358)
+- normalize glob result paths across platforms by @xryanlee in [#359](https://github.com/necoz-oss/changelog-bot/pull/359)
+- classify breaking change footers and git revert subjects (#365) by @johnnylemonny in [#366](https://github.com/necoz-oss/changelog-bot/pull/366)
+
+### Changed
+
+- remove unnecessary TypeScript suppression by @Mayank-jaiswal13 in [#306](https://github.com/necoz-oss/changelog-bot/pull/306)
+  - Why: Removes unnecessary TypeScript suppression to allow TypeScript to check the files for type errors.
+- extract shared fallback reason formatting in dry-run diagnostics by @tylrcc in [#316](https://github.com/necoz-oss/changelog-bot/pull/316)
+  - Why: Extracts shared fallback reason formatting logic to reduce code duplication in dry-run diagnostics.
+- extract reusable changelog-run test fixtures by @johnnylemonny in [#311](https://github.com/necoz-oss/changelog-bot/pull/311)
+  - Why: Extracts reusable test fixtures to improve readability and reduce duplication in changelog-run tests.
+- reuse version section matching logic in changelog utilities by @tylrcc in [#317](https://github.com/necoz-oss/changelog-bot/pull/317)
+- reduce duplicated GitHub metadata error formatting by @tylrcc in [#318](https://github.com/necoz-oss/changelog-bot/pull/318)
+  - Why: Reduces duplicated GitHub metadata error formatting to streamline error handling code.
+- reuse pull request lookup logic for commits by @Mayank-jaiswal13 in [#327](https://github.com/necoz-oss/changelog-bot/pull/327)
+  - Why: Removes duplicated lookup logic for pull requests to streamline the process of finding associated commits.
+- use isRecord guard when reading the changelog file by @dbdefault in [#351](https://github.com/necoz-oss/changelog-bot/pull/351)
+  - Why: Uses an isRecord guard to safely handle errors when reading the changelog file, improving error handling.
+- simplify shared guards with is-kit predicates by @dbdefault in [#352](https://github.com/necoz-oss/changelog-bot/pull/352)
+  - Why: Simplifies shared guards by utilizing existing is-kit predicates to reduce code redundancy.
+- allow multi-paragraph breaking change footer descriptions by @johnnylemonny in [#366](https://github.com/necoz-oss/changelog-bot/pull/366)
+- restrict breaking footer scope and narrow provider prompt contract by @johnnylemonny in [#366](https://github.com/necoz-oss/changelog-bot/pull/366)
+- refine breaking change metadata and git parsing boundaries by @johnnylemonny in [#366](https://github.com/necoz-oss/changelog-bot/pull/366)
+
+### Docs
+
+- 0.11.1 by @github-actions[bot] in [#295](https://github.com/necoz-oss/changelog-bot/pull/295)
+- add practical output destination examples by @sorathiya903 in [#309](https://github.com/necoz-oss/changelog-bot/pull/309)
+- explain how to claim an issue by @xryanlee in [#330](https://github.com/necoz-oss/changelog-bot/pull/330)
+
+### Test
+
+- Add test:coverage script for Jest by @19algorythms in [#299](https://github.com/necoz-oss/changelog-bot/pull/299)
+- add 10 counterfactual case families and group integrity validation (#237) by @johnnylemonny in [#320](https://github.com/necoz-oss/changelog-bot/pull/320)
+- expand compare link generation coverage by @MayurK-cmd in [#326](https://github.com/necoz-oss/changelog-bot/pull/326)
+- cover empty fallback reasons by @dbdefault in [#342](https://github.com/necoz-oss/changelog-bot/pull/342)
+- cover repeated compare link updates by @Satorino01 in [#348](https://github.com/necoz-oss/changelog-bot/pull/348)
+- expand title lookup collision coverage by @dbdefault in [#349](https://github.com/necoz-oss/changelog-bot/pull/349)
+- cover invalid limits and mapper invocation by @xryanlee in [#360](https://github.com/necoz-oss/changelog-bot/pull/360)
+
+### Chore
+
+- bump the minor-and-patch group with 4 updates by @dependabot[bot] in [#301](https://github.com/necoz-oss/changelog-bot/pull/301)
+- assign pull request authors automatically by @nyaomaru in [#328](https://github.com/necoz-oss/changelog-bot/pull/328)
+- bump actions/github-script from 8 to 9 in the actions group by @dependabot[bot] in [#331](https://github.com/necoz-oss/changelog-bot/pull/331)
+- bump the minor-and-patch group with 3 updates by @dependabot[bot] in [#332](https://github.com/necoz-oss/changelog-bot/pull/332)
+- Release: 0.12.0 by @github-actions[bot] in [#368](https://github.com/necoz-oss/changelog-bot/pull/368)
+
+### What's new 🚀
+
+#### 📝 Your changelog, your workflow 
+
+Changelog generation is now independent of how the result is delivered.
+
+Choose the output that fits your workflow:
+
+- `--output pull-request` — Create a pull request (default).
+- `--output file` — Update your local CHANGELOG.md directly.
+- `--output stdout` — Output the generated release notes for use with other tools.
+
+No unnecessary branches, commits, or pull requests when you don't need them.
+
+#### 👀 Your changelog, your audience
+
+Not everyone needs to read about dependency updates and internal maintenance. 🐈
+
+The new `--audience` option lets you choose:
+
+- `all` — Include all existing changelog categories (default).
+- `user` — Focus on Breaking Changes, Added, Fixed, and Changed.
+
+Audience filtering is deterministic and independent of the output destination. Previous release entries remain unaffected.
+
+Thanks to @sorathiya903 for implementing this feature in #367! 💚
+
+#### 💯 More trustworthy WHY extraction
+
+A convincing explanation isn't necessarily a correct explanation.
+
+We've taken another step toward making WHY extraction more reliable.
+
+- Explore linked issues as additional WHY evidence.
+- Distinguish correct rationale selections from incorrect ones.
+- Expand the evaluation corpus from 50 to 70 cases.
+- Introduce 10 counterfactual case families.
+- Measure wrong-change acceptance and missing-reason rejection separately.
+
+We would rather omit a WHY than confidently tell you the wrong story.
+
+#### 🚀 More reliable changelog generation
+
+- Support Conventional Commits breaking-change footers.
+- Improve Git revert classification and commit parsing.
+- Keep provider payloads narrowly scoped.
+- Preserve custom Markdown category headings.
+- Avoid linking PR references inside fenced code blocks.
+- Prevent duplicated changelog bullets.
+- Expand regression coverage across the release pipeline.
+
+Lots of small improvements that make a big difference together!
+
+### A major milestone: Phase 7 is complete! 🎉
+
+All seven phases of our deterministic-first v1 architecture are now implemented.
+
+The architecture we've been working toward is finally in place 👇
+
+> **Deterministic core → Optional AI enrichment → Deterministic rendering → Delivery**
+
+AI is here to make your changelog better, not to decide whether it works.
+
+We're not rushing toward v1.0.0 just yet. There's still more to explore, improve, and learn from real-world usage.
+
+But this is a milestone worth celebrating!
+
+### A special thank you to John 🏆
+
+A massive thank you to @johnnylemonny for his incredible contributions throughout this release.
+
+- #298 — Linked issue evidence for WHY extraction
+- #302 — Generation and delivery separation
+- #310 — Evidence-grounded evaluation metrics
+- #311 — Reusable integration test fixtures
+- #320 — Counterfactual WHY evaluation corpus
+- #366 — Breaking-change classification and safer Git parsing
+
+And that's just the pull requests!
+
+Behind those contributions are countless thoughtful discussions, architectural proposals, careful reviews, regression tests, and improvements to other contributors' work.
+
+John doesn't just implement features. He thinks deeply about why we're building them, challenges assumptions, and helps us find better solutions together.
+
+From his first contribution improving Windows development support in v0.7.0 to helping complete the entire deterministic-first architecture, his impact on this project has been remarkable.
+
+Changelog-bot wouldn't be where it is today without you.
+
+Thank you for being such an amazing collaborator, John. I'm really happy we're building this together! 💚🐈
+
+### New Contributors 🐣
+
+A very warm welcome to our 12 first-time contributors!
+
+- @19algorythms — Test coverage tooling in #299
+- @Mayank-jaiswal13 — Type-safe tests in #306 and PR lookup improvements in #327
+- @GyulianoDev — Clearer CLI validation errors in #307
+- @sorathiya903 — Output documentation in #309 and audience policy in #367
+- @tylrcc — Shared utilities and reduced code duplication in #316, #317, and #318
+- @noahkhomer18 — Changelog bullet deduplication in #324
+- @WebWizard5243 — Metadata diagnostic improvements in #325
+- @MayurK-cmd — Compare link regression coverage in #326
+- @xryanlee — Contribution documentation, Markdown handling, and regression coverage in #330, #358, #359, and #360
+- @enidchen0125 — Repository configuration validation in #339
+- @dbdefault — Metadata tests, Markdown fixes, title lookup coverage, and runtime guard improvements in #342, #345, #349, #351, and #352
+- @Satorino01 — Compare link update regression coverage in #348
+
+Thank you all for taking the time to explore the codebase, work through review feedback, and make changelog-bot a little better.
+Whether you contributed a test, a bug fix, documentation, a refactoring, or an entire feature, every contribution matters.
+
+And whenever you have some free time, feel free to come back and play around with changelog-bot again.
+
+You're always welcome here! 😸💕
+
+### What's next?
+
+We'll continue exploring more trustworthy WHY extraction, evidence provenance, CI integration, and other improvements before v1.0.0.
+
+One small step at a time, together.
+
+Happy changelogging! 🚀
+
+### New Contributors
+
+* @19algorythms made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/299
+* @Mayank-jaiswal13 made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/306
+* @GyulianoDev made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/307
+* @sorathiya903 made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/309
+* @tylrcc made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/316
+* @noahkhomer18 made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/324
+* @MayurK-cmd made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/326
+* @WebWizard5243 made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/325
+* @xryanlee made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/330
+* @dbdefault made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/342
+* @enidchen0125 made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/339
+* @Satorino01 made their first contribution in https://github.com/necoz-oss/changelog-bot/pull/348
+
+**Full Changelog**: https://github.com/necoz-oss/changelog-bot/compare/v0.11.1...v0.12.0
+
+[v0.12.0]: https://github.com/necoz-oss/changelog-bot/compare/v0.11.1...v0.12.0
+
 ## [v0.11.1] - 2026-11-01
 
 ### Docs
