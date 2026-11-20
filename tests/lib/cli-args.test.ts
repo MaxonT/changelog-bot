@@ -175,6 +175,38 @@ describe('cli-args', () => {
     },
   );
 
+  test.each([
+    [['--dry-run'], '--dry-run'],
+    [['--dry-run-json-report'], '--dry-run-json-report'],
+    [['--output', 'file'], '--output file'],
+    [['--output', 'stdout'], '--output stdout'],
+  ])(
+    'rejects --check combined with %j',
+    async (extraArgs, conflictingOption) => {
+      const result = parseCliArgs(['node', 'cli', '--check', ...extraArgs]);
+
+      await expect(result).rejects.toThrow(
+        `--check cannot be combined with ${conflictingOption}`,
+      );
+      await expect(result).rejects.toThrow(/→ at check$/);
+      await expect(result).rejects.toBeInstanceOf(ConfigError);
+      await expect(result).rejects.toHaveProperty('exitCode', EXIT_USAGE);
+    },
+  );
+
+  test('accepts --check with the pull-request output', async () => {
+    const out = await parseCliArgs([
+      'node',
+      'cli',
+      '--check',
+      '--output',
+      'pull-request',
+    ]);
+
+    expect(out.check).toBe(true);
+    expect(out.output).toBe('pull-request');
+  });
+
   test('parses --no-ai as deterministic mode', async () => {
     const out = await parseCliArgs(['node', 'cli', '--no-ai']);
 

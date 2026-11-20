@@ -16,6 +16,12 @@ import {
 } from '@/lib/changelog-dry-run.js';
 import { resolveChangelogRunInput } from '@/lib/changelog-run-input.js';
 import { finalizeChangelogRunOutput } from '@/lib/changelog-run-output.js';
+import { readChangelogSnapshot } from '@/lib/changelog-file.js';
+import {
+  evaluateChangelogCheck,
+  formatChangelogCheckFailure,
+} from '@/lib/changelog-check.js';
+import { ChangelogDriftError } from '@/lib/errors.js';
 import { mergeMetadataDiagnostics } from '@/utils/metadata-diagnostics.js';
 
 export type { ChangelogRunDependencies, ChangelogRunLogger };
@@ -114,6 +120,28 @@ export async function executeChangelogRun(params: {
     inputMetadataDiagnostics,
     finalizedOutput.metadataDiagnostics,
   );
+
+  if (cli.check) {
+    const changelogSnapshot = readChangelogSnapshot(changelogPath);
+    const checkResult = evaluateChangelogCheck({
+      changelogPath,
+      fileExists: changelogSnapshot.exists,
+      actualChangelog: changelogSnapshot.content,
+      generatedChangelog: updatedChangelog,
+    });
+
+    // WHY: A no-changes run would write nothing, so an existing file is already
+    // current even when prepareExistingChangelog normalized its bottom link.
+    if (
+      checkResult.status !== 'in-sync' &&
+      !(checkResult.status === 'out-of-date' && llmOutput.outcome?.kind === 'no-changes')
+    ) {
+      throw new ChangelogDriftError(formatChangelogCheckFailure(checkResult));
+    }
+
+    log(`${changelogPath} is up to date.`);
+    return;
+  }
 
   if (cli.dryRun) {
     writeDryRunOutput({
