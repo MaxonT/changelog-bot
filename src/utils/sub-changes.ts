@@ -21,11 +21,13 @@ export type PrSubChangeDescriptor = {
 
 // WHY: Restrict sub-change candidates to user-facing Conventional Commit types.
 // Chores, test additions, CI updates, and builds do not represent independent release notes.
+// Refactors are excluded too: by definition they neither fix a bug nor add a feature, so
+// inside a pull request they are refinements of its change (often made during review),
+// not evidence of a second user-facing change.
 const USER_FACING_COMMIT_TYPES: ReadonlySet<string> = new Set([
   'feat',
   'fix',
   'perf',
-  'refactor',
 ]);
 
 const GIT_FIXUP_RE = /^(?:fixup!|squash!|amend!)\s*/i;
@@ -44,7 +46,7 @@ const PARTIAL_COMMIT_RE =
 /**
  * Inspect a change subject line to determine whether it represents a non-trivial user-facing change.
  * WHY: Commit discovery is strictly restricted to explicit user-facing Conventional Commit types
- * (feat, fix, perf, refactor) so non-conventional lines (e.g. "add tests", "rename helper") never
+ * (feat, fix, perf) so non-conventional lines (e.g. "add tests", "rename helper") never
  * cause false sub-change splits.
  * @param subject Git commit subject line.
  * @returns True if the change represents an eligible user-facing sub-change.
