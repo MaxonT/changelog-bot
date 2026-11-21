@@ -18,6 +18,7 @@ export const ReleaseSectionSchema = z.object({
 export const ParsedReleaseSchema = z.object({
   items: z.array(ReleaseItemSchema),
   fullChangelog: z.string().url().optional(),
+  intro: z.string().optional(),
   sections: z.array(ReleaseSectionSchema).optional(),
 });
 
