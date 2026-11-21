@@ -8,6 +8,7 @@ import type {
 } from '@/types/release.js';
 import {
   collectReleaseH2Sections,
+  collectReleasePreamble,
   type RawReleaseSection,
 } from '@/utils/release-markdown.js';
 import { stripConventionalPrefix } from '@/utils/title-normalize.js';
@@ -23,6 +24,7 @@ const PR_REF_RE = /\(#?(\d+)\)|#(\d+)/;
 const AUTHOR_RE = /@([A-Za-z0-9_-]+(?:\[bot\])?)/;
 const TRAILING_BY_IN_RE = /\s*(by|in)\s*$/i;
 const TYPOGRAPHIC_APOSTROPHE_RE = /[’`´]/g;
+const HTML_COMMENT_LINE_RE = /^\s*<!--.*-->\s*$/;
 const COLLAPSE_WHITESPACE_RE = /\s+/g;
 
 type RepoInfo = {
@@ -131,6 +133,19 @@ function toReleaseSection(
   return { heading: section.heading, body };
 }
 
+function extractReleaseIntro(body: string): string | undefined {
+  // WHY: GitHub's generated notes open with an HTML comment naming the
+  // release config; it is invisible on the release page and is not intro text.
+  const intro = collectReleasePreamble(body)
+    .filter(
+      (line) =>
+        !FULL_CHANGELOG_RE.test(line) && !HTML_COMMENT_LINE_RE.test(line),
+    )
+    .join('\n')
+    .trim();
+  return intro || undefined;
+}
+
 function extractFullChangelog(
   body: string,
   repo?: RepoInfo,
@@ -188,6 +203,7 @@ export function parseReleaseNotes(
   const candidate: ParsedRelease = {
     items,
     fullChangelog: extractFullChangelog(body, repo),
+    intro: extractReleaseIntro(body),
     sections: additionalSections.length ? additionalSections : undefined,
   };
   const parsed = ParsedReleaseSchema.safeParse(candidate);

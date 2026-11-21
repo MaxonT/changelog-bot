@@ -67,6 +67,7 @@ export function buildReleaseDraft(
   let sourceChanges: ReleaseChange[] = [];
   let fullChangelog = params.fullChangelog;
   let sections = undefined;
+  let intro: string | undefined;
 
   if (releaseBody?.trim()) {
     const parsedRelease = parseReleaseNotes(releaseBody, { owner, repo });
@@ -77,6 +78,7 @@ export function buildReleaseDraft(
       excludedChanges,
     );
     sections = parsedRelease.sections;
+    intro = parsedRelease.intro;
     if (parsedRelease.fullChangelog) {
       fullChangelog = parsedRelease.fullChangelog;
     }
@@ -137,6 +139,7 @@ export function buildReleaseDraft(
     assignments,
     excludedChanges,
     fullChangelog,
+    intro,
     sections,
     sourceChanges,
   };

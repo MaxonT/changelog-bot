@@ -54,6 +54,14 @@ function appendAdditionalReleaseSections(
   }
 }
 
+function appendReleaseIntro(lines: string[], intro: string | undefined): void {
+  const body = intro?.trim();
+  if (!body) return;
+  // WHY: The intro sits directly under the version H2, so any heading it
+  // carries is demoted below the H3 categories to keep the section structure.
+  lines.push(demoteAdditionalSectionHeadings(body), '');
+}
+
 /**
  * Build a categorized changelog section from parsed release data.
  * @param params Version, date, changes, category assignments, and optional additions.
@@ -65,6 +73,7 @@ export function buildSectionFromRelease(params: {
   changes: ReleaseChange[];
   assignments: CategoryAssignments;
   fullChangelog?: string;
+  intro?: string;
   sections?: ReleaseSection[];
   whyLabel?: string;
 }): string {
@@ -78,6 +87,7 @@ export function buildSectionFromRelease(params: {
   } = params;
   const lines: string[] = [`## [v${version}] - ${date}`, ''];
 
+  appendReleaseIntro(lines, params.intro);
   appendCategorizedReleaseSections(lines, changes, assignments, whyLabel);
   appendAdditionalReleaseSections(lines, sections);
 
