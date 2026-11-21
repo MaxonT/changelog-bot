@@ -106,6 +106,9 @@ describe('evaluateWhySelections', () => {
       agentNegativeCases: 0,
       agentFalsePositives: 0,
       agentFalsePositiveRate: null,
+      agentLimitationCases: 0,
+      agentLimitationAcceptances: 0,
+      agentLimitationAcceptanceRate: null,
       outcomes: [
         {
           id: 'positive',
@@ -699,6 +702,115 @@ describe('evaluateWhySelections', () => {
     expect(noAgentMetrics.agentNegativeCases).toBe(0);
     expect(noAgentMetrics.agentFalsePositives).toBe(0);
     expect(noAgentMetrics.agentFalsePositiveRate).toBeNull();
+  });
+
+  test('scopes agent false-positive rate to regression cases and tracks limitation acceptance separately', () => {
+    const corpusWithLimitations: WhyEvaluationCase[] = [
+      // Grounded agent positive (regression)
+      {
+        id: 'agent-pos',
+        authorship: 'agent',
+        evaluationTier: 'regression',
+        item: {
+          prNumber: 401,
+          title: 'Grounded',
+          itemText: 'Grounded',
+          sectionTitle: 'Added',
+          trustScore: 8,
+          trustBucket: 'high',
+          requiresHighConfidence: false,
+          candidates: ['Valid rationale.'],
+        },
+        expectedSelectedCandidateIndex: 0,
+      },
+      // Agent negative regression case (unsupported)
+      {
+        id: 'agent-neg-regression',
+        authorship: 'agent',
+        evaluationTier: 'regression',
+        item: {
+          prNumber: 402,
+          title: 'Unsupported',
+          itemText: 'Unsupported',
+          sectionTitle: 'Changed',
+          trustScore: 7,
+          trustBucket: 'medium',
+          requiresHighConfidence: false,
+          candidates: ['Plausible but unsupported rationale.'],
+        },
+        expectedSelectedCandidateIndex: null,
+      },
+      // Agent negative limitation case (exploratory)
+      {
+        id: 'agent-neg-limitation',
+        authorship: 'agent',
+        evaluationTier: 'limitation',
+        item: {
+          prNumber: 403,
+          title: 'Limitation case',
+          itemText: 'Limitation case',
+          sectionTitle: 'Changed',
+          trustScore: 7,
+          trustBucket: 'medium',
+          requiresHighConfidence: false,
+          candidates: ['Limitation candidate with ambiguous context.'],
+        },
+        expectedSelectedCandidateIndex: null,
+      },
+    ];
+
+    // Scenario A: Extractor accepts the limitation case (PR 403) and grounded case (PR 401),
+    // but correctly rejects the regression negative (PR 402).
+    const limitationAccepted = evaluateWhySelections(corpusWithLimitations, [
+      { prNumber: 401, why: 'Valid rationale.', confidence: 'high' },
+      {
+        prNumber: 403,
+        why: 'Limitation candidate with ambiguous context.',
+        confidence: 'high',
+      },
+    ]);
+
+    // Primary agent regression metrics must remain completely undistorted by PR 403
+    expect(limitationAccepted.agentNegativeCases).toBe(1);
+    expect(limitationAccepted.agentFalsePositives).toBe(0);
+    expect(limitationAccepted.agentFalsePositiveRate).toBe(0); // 0 / 1 = 0%
+
+    // Limitation metrics must accurately capture the exploratory acceptance
+    expect(limitationAccepted.agentLimitationCases).toBe(1);
+    expect(limitationAccepted.agentLimitationAcceptances).toBe(1);
+    expect(limitationAccepted.agentLimitationAcceptanceRate).toBe(1.0); // 1 / 1 = 100%
+
+    // Overall precision/recall still accounts for PR 403 as a false positive decision
+    expect(limitationAccepted.truePositives).toBe(1);
+    expect(limitationAccepted.falsePositives).toBe(1); // PR 403 accepted without expected candidate
+    expect(limitationAccepted.precision).toBe(0.5);
+
+    // Scenario B: Extractor rejects the limitation case as well
+    const limitationRejected = evaluateWhySelections(corpusWithLimitations, [
+      { prNumber: 401, why: 'Valid rationale.', confidence: 'high' },
+    ]);
+    expect(limitationRejected.agentNegativeCases).toBe(1);
+    expect(limitationRejected.agentFalsePositives).toBe(0);
+    expect(limitationRejected.agentFalsePositiveRate).toBe(0);
+    expect(limitationRejected.agentLimitationCases).toBe(1);
+    expect(limitationRejected.agentLimitationAcceptances).toBe(0);
+    expect(limitationRejected.agentLimitationAcceptanceRate).toBe(0);
+
+    // Scenario C: Extractor accepts regression negative (PR 402) but rejects limitation (PR 403)
+    const regressionAccepted = evaluateWhySelections(corpusWithLimitations, [
+      { prNumber: 401, why: 'Valid rationale.', confidence: 'high' },
+      {
+        prNumber: 402,
+        why: 'Plausible but unsupported rationale.',
+        confidence: 'high',
+      },
+    ]);
+    expect(regressionAccepted.agentNegativeCases).toBe(1);
+    expect(regressionAccepted.agentFalsePositives).toBe(1);
+    expect(regressionAccepted.agentFalsePositiveRate).toBe(1.0);
+    expect(regressionAccepted.agentLimitationCases).toBe(1);
+    expect(regressionAccepted.agentLimitationAcceptances).toBe(0);
+    expect(regressionAccepted.agentLimitationAcceptanceRate).toBe(0);
   });
 });
 

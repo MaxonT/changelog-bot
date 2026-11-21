@@ -165,15 +165,25 @@ export type WhyEvaluationMetrics = {
   missingReasonRejections: number;
   /** Fraction of missing-reason cases correctly rejected (null when denominator is zero). */
   missingReasonRejectionRate: number | null;
-  /** Negative cases authored by an agent (unsupported plausible rationale or implementation-only). */
+  /** Negative regression cases authored by an agent (unsupported plausible rationale or implementation-only). */
   agentNegativeCases: number;
-  /** Agent negative cases incorrectly accepted by the extractor. */
+  /** Agent negative regression cases incorrectly accepted by the extractor. */
   agentFalsePositives: number;
   /**
-   * Fraction of agent negative cases incorrectly accepted (null when denominator is zero).
-   * WHY: Measures resilience against plausible agent hallucinations and code walkthroughs.
+   * Fraction of agent negative regression cases incorrectly accepted (null when denominator is zero).
+   * WHY: Scoped strictly to regression cases so exploratory limitation cases do not distort the primary metric.
    */
   agentFalsePositiveRate: number | null;
+  /** Exploratory limitation cases authored by an agent where observable input is ambiguous. */
+  agentLimitationCases: number;
+  /** Agent limitation cases accepted by the extractor. */
+  agentLimitationAcceptances: number;
+  /**
+   * Fraction of agent limitation cases accepted (null when denominator is zero).
+   * WHY: Tracked separately from the primary Agent FP Rate to measure sensitivity to plausible claims
+   * when repository context is missing.
+   */
+  agentLimitationAcceptanceRate: number | null;
   /** Per-case decisions used to diagnose metric changes. */
   outcomes: WhyEvaluationOutcome[];
 };
@@ -399,6 +409,8 @@ export function evaluateWhySelections(
   let totalMissingReasonCases = 0;
   let agentNegativeCases = 0;
   let agentFalsePositives = 0;
+  let agentLimitationCases = 0;
+  let agentLimitationAcceptances = 0;
   const outcomes: WhyEvaluationOutcome[] = [];
 
   for (const evaluationCase of cases) {
@@ -455,12 +467,20 @@ export function evaluateWhySelections(
       totalMissingReasonCases += 1;
     }
 
-    // WHY: Track agent negative cases (unsupported plausible rationales and implementation-only descriptions)
-    // to measure the agent false-positive rate.
+    // WHY: Track agent negative cases to measure agent false-positive rate and limitation acceptance.
+    // Regression cases (evaluationTier !== 'limitation') measure the primary Agent FP rate,
+    // while exploratory limitation cases are tracked separately so ambiguous inputs do not distort regression metrics.
     if (evaluationCase.authorship === 'agent' && !expectedSelection) {
-      agentNegativeCases += 1;
-      if (predictedSelection) {
-        agentFalsePositives += 1;
+      if (evaluationCase.evaluationTier === 'limitation') {
+        agentLimitationCases += 1;
+        if (predictedSelection) {
+          agentLimitationAcceptances += 1;
+        }
+      } else {
+        agentNegativeCases += 1;
+        if (predictedSelection) {
+          agentFalsePositives += 1;
+        }
       }
     }
 
@@ -533,6 +553,10 @@ export function evaluateWhySelections(
     totalMissingReasonCases,
   );
   const agentFalsePositiveRate = ratio(agentFalsePositives, agentNegativeCases);
+  const agentLimitationAcceptanceRate = ratio(
+    agentLimitationAcceptances,
+    agentLimitationCases,
+  );
 
   return {
     caseCount: cases.length,
@@ -565,6 +589,9 @@ export function evaluateWhySelections(
     agentNegativeCases,
     agentFalsePositives,
     agentFalsePositiveRate,
+    agentLimitationCases,
+    agentLimitationAcceptances,
+    agentLimitationAcceptanceRate,
     outcomes,
   };
 }
