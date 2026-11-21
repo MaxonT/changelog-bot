@@ -87,6 +87,11 @@ inputs:
     description: 'Label used for rendered WHY notes'
     required: false
 
+outputs:
+  release-notes:
+    description: "Generated release section as Markdown. Set only when 'output' is 'stdout'; empty for other destinations."
+    value: ${{ steps.changelog-bot.outputs.release-notes }}
+
 runs:
   using: 'composite'
   steps:
@@ -108,6 +113,7 @@ runs:
         corepack prepare pnpm@11.22.0 --activate
 
     - name: Run changelog-bot
+      id: changelog-bot
       shell: bash
       env:
         # Allow repo name to be auto-detected by the CLI
@@ -242,7 +248,26 @@ runs:
         fi
 
         echo "+ ${CMD[@]}"
-        "${CMD[@]}"
+        if [ "${INPUT_OUTPUT:-}" = "stdout" ]; then
+          # WHY: with `--output stdout` the CLI prints only the release section on
+          # stdout and sends logs to stderr, so stdout can be exposed as the
+          # `release-notes` output. A random delimiter keeps multi-line Markdown
+          # intact in $GITHUB_OUTPUT whatever the notes contain.
+          RELEASE_NOTES_FILE="$(mktemp)"
+          "${CMD[@]}" | tee "${RELEASE_NOTES_FILE}"
+          if [ -n "$(tail -c 1 "${RELEASE_NOTES_FILE}")" ]; then
+            echo >> "${RELEASE_NOTES_FILE}"
+          fi
+          RELEASE_NOTES_DELIMITER="CHANGELOG_BOT_$(openssl rand -hex 16)"
+          {
+            echo "release-notes<<${RELEASE_NOTES_DELIMITER}"
+            cat "${RELEASE_NOTES_FILE}"
+            echo "${RELEASE_NOTES_DELIMITER}"
+          } >> "${GITHUB_OUTPUT}"
+          rm -f "${RELEASE_NOTES_FILE}"
+        else
+          "${CMD[@]}"
+        fi
 
 # Notes:
 # - Pass secrets from the workflow using 'env' on the uses step, e.g.:

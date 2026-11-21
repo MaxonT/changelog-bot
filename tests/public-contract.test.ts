@@ -42,7 +42,7 @@ function extractPublicContractRows(readmeText: string): ContractRow[] {
     throw new Error(`Missing README heading: ${README_CONTRACT_HEADING}`);
   }
 
-  const outputsStart = readmeText.indexOf('Outputs: None.', tableStart);
+  const outputsStart = readmeText.indexOf('\nOutputs:\n', tableStart);
   if (outputsStart === -1) {
     throw new Error('Missing README public contract table terminator');
   }
@@ -109,7 +109,12 @@ function extractConfigSchemaKeys(configSchemaSource: string): string[] {
 
 function extractActionInputs(actionYaml: string): string[] {
   const inputsStart = actionYaml.indexOf('inputs:\n');
-  const runsStart = actionYaml.indexOf('\nruns:', inputsStart);
+  // The inputs block ends where the `outputs:` block (or, without one, `runs:`) starts.
+  const outputsStart = actionYaml.indexOf('\noutputs:', inputsStart);
+  const runsStart =
+    outputsStart === -1
+      ? actionYaml.indexOf('\nruns:', inputsStart)
+      : outputsStart;
   if (inputsStart === -1 || runsStart === -1) {
     throw new Error('Could not find action inputs block');
   }
@@ -202,6 +207,19 @@ describe('public contract parity', () => {
     );
 
     expect(uniqueSorted(workflowInputsAsActionNames)).toEqual(actionInputs);
+  });
+
+  test('exposes release notes as a documented action output', () => {
+    const actionYaml = readRepoFile('action.yml');
+    const readmeText = readRepoFile('README.md');
+
+    expect(actionYaml).toContain('\noutputs:\n  release-notes:\n');
+    expect(actionYaml).toContain(
+      'value: ${{ steps.changelog-bot.outputs.release-notes }}',
+    );
+    expect(actionYaml).toContain('id: changelog-bot');
+    expect(actionYaml).toContain('>> "${GITHUB_OUTPUT}"');
+    expect(readmeText).toContain('| `release-notes` |');
   });
 
   test('forwards the WHY engine and TypeSafe credential through CI wrappers', () => {
