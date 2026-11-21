@@ -164,3 +164,104 @@ describe('sub-change expansion of refinement commits (#371)', () => {
     expect(run()).toEqual(run());
   });
 });
+
+describe('sub-change independence needs more than the commit type', () => {
+  // Case A from review: follow-up fixes that refine one change.
+  const CASE_A_TITLE = 'fix: prevent duplicate changelog entries';
+  const CASE_A_COMMITS = [
+    { sha: 'a1', subject: 'fix: deduplicate release entries' },
+    {
+      sha: 'a2',
+      subject: 'fix: handle duplicate entries with missing PR metadata',
+    },
+    { sha: 'a3', subject: 'fix: preserve entry order during deduplication' },
+  ];
+
+  test('keeps follow-up fixes of one change as a single PR entry (case A)', () => {
+    expect(
+      detectPrSubChangesFromCommits(300, CASE_A_TITLE, CASE_A_COMMITS),
+    ).toBeNull();
+
+    const draft = buildReleaseDraft({
+      version: '1.1.0',
+      date: '2026-11-21',
+      commitList: CASE_A_COMMITS,
+      pullRequestsBySha: pullRequestsFor(CASE_A_COMMITS, {
+        number: 300,
+        title: CASE_A_TITLE,
+        author: 'alice',
+      }),
+      owner: 'acme',
+      repo: 'tool',
+    });
+
+    expect(draft.changes.map((change) => change.id)).toEqual(['pr:300']);
+    expect(validateReleaseResult(draft).kind).toBe('release');
+  });
+
+  test('keeps unscoped fixes as one entry when independence cannot be shown (case B)', () => {
+    expect(
+      detectPrSubChangesFromCommits(301, 'fix: improve changelog reliability', [
+        { sha: 'b1', subject: 'fix: prevent duplicate release entries' },
+        { sha: 'b2', subject: 'fix: correct broken compare links' },
+      ]),
+    ).toBeNull();
+  });
+
+  test('expands same-type fixes that name different scopes (case B, scoped)', () => {
+    const commits = [
+      { sha: 'b1', subject: 'fix(release): prevent duplicate release entries' },
+      { sha: 'b2', subject: 'fix(links): correct broken compare links' },
+    ];
+
+    expect(
+      detectPrSubChangesFromCommits(
+        302,
+        'fix: improve changelog reliability',
+        commits,
+      ),
+    ).toEqual([
+      {
+        subIndex: 1,
+        title: 'prevent duplicate release entries',
+        rawTitle: 'fix(release): prevent duplicate release entries',
+        commitSha: 'b1',
+      },
+      {
+        subIndex: 2,
+        title: 'correct broken compare links',
+        rawTitle: 'fix(links): correct broken compare links',
+        commitSha: 'b2',
+      },
+    ]);
+
+    const draft = buildReleaseDraft({
+      version: '1.1.0',
+      date: '2026-11-21',
+      commitList: commits,
+      pullRequestsBySha: pullRequestsFor(commits, {
+        number: 302,
+        title: 'fix: improve changelog reliability',
+        author: 'alice',
+      }),
+      owner: 'acme',
+      repo: 'tool',
+    });
+
+    expect(draft.changes.map((change) => change.id)).toEqual([
+      'pr:302:c1',
+      'pr:302:c2',
+    ]);
+    expect(validateReleaseResult(draft).kind).toBe('release');
+  });
+
+  test('keeps the PR whole when two candidates share a type and scope next to a distinct one', () => {
+    expect(
+      detectPrSubChangesFromCommits(303, 'feat: export improvements', [
+        { sha: 'd1', subject: 'feat(api): implement bulk export endpoint' },
+        { sha: 'd2', subject: 'fix: handle missing authorization header' },
+        { sha: 'd3', subject: 'fix: retry export on a dropped connection' },
+      ]),
+    ).toBeNull();
+  });
+});

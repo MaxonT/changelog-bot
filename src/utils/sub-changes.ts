@@ -31,6 +31,7 @@ const USER_FACING_COMMIT_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 const GIT_FIXUP_RE = /^(?:fixup!|squash!|amend!)\s*/i;
+const CONVENTIONAL_TYPE_SCOPE_RE = /^([a-z]+)(?:\(([^)]*)\))?!?:/i;
 const MERGE_COMMIT_RE = /^merge\s+(?:branch|pull\s+request|tag)\b/i;
 
 // WHY: Commits addressing review comments, formatting, or minor typos are part of the
@@ -72,6 +73,18 @@ function isUserFacingChange(subject: string): boolean {
   }
 
   return true;
+}
+
+/**
+ * Build the Conventional Commit type/scope slot a commit subject belongs to.
+ * @param commit Commit whose subject has already passed isUserFacingChange.
+ * @returns Lower-cased `type(scope)` key, with an empty scope for unscoped subjects.
+ */
+function commitTypeScopeKey(commit: CommitLite): string {
+  const match = commit.subject.match(CONVENTIONAL_TYPE_SCOPE_RE);
+  const type = match?.[1]?.toLowerCase() ?? '';
+  const scope = match?.[2]?.trim().toLowerCase() ?? '';
+  return `${type}(${scope})`;
 }
 
 /**
@@ -135,6 +148,15 @@ export function detectPrSubChangesFromCommits(
 
   // Invariant: At least 2 distinct user-facing semantic subjects are required
   if (candidateCommits.length < 2) {
+    return null;
+  }
+
+  // WHY: Two commits of the same type in the same scope (or both unscoped) cannot be told
+  // apart from follow-up refinements of one change made during PR development, so the
+  // commit type alone is not evidence of independence. Expand only when every candidate
+  // sits in its own type/scope slot; otherwise keep the parent PR as a single change.
+  const typeScopeKeys = new Set(candidateCommits.map(commitTypeScopeKey));
+  if (typeScopeKeys.size !== candidateCommits.length) {
     return null;
   }
 
