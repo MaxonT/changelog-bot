@@ -1,8 +1,9 @@
-// @ts-nocheck
 import { describe, expect, test } from '@jest/globals';
+
+import type { Provider } from '@/types/provider.js';
 import { buildChangelogLlmOutput } from '@/utils/llm-output.js';
 
-const provider = {
+const provider: Provider = {
   name: 'openai',
   modelName: 'mock',
   supports: {
@@ -16,6 +17,9 @@ const provider = {
   },
   classifyChanges: async () => {
     throw new Error('Unexpected classification call');
+  },
+  extractWhyNotes: async () => {
+    throw new Error('Unexpected why extraction call');
   },
 };
 
