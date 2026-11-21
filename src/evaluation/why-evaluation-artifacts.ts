@@ -200,8 +200,8 @@ export function generateEvaluationMarkdownSummary(
     '',
     '## Engine Comparison',
     '',
-    '| Engine | Status | Requested Model | Served Model | Latency (mean / p95) | Tokens (in / out) | Precision | Recall | F1 | Wrong-Change Accept | Missing-Reason Reject | Exact Preservation | Retries / Throttled |',
-    '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |',
+    '| Engine | Status | Requested Model | Served Model | Latency (mean / p95) | Tokens (in / out) | Precision | Recall | F1 | Wrong-Change Accept | Missing-Reason Reject | Agent FP Accept | Agent Limit Accept | Exact Preservation | Retries / Throttled |',
+    '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |',
   ];
 
   for (const engineReport of artifact.engines) {
@@ -219,6 +219,10 @@ export function generateEvaluationMarkdownSummary(
     const missingReasonDisplay = formatRate(
       metrics?.missingReasonRejectionRate,
     );
+    const agentFpDisplay = formatRate(metrics?.agentFalsePositiveRate);
+    const agentLimitDisplay = formatRate(
+      metrics?.agentLimitationAcceptanceRate,
+    );
     const exactPreservationDisplay = formatRate(
       metrics?.exactCandidatePreservationRate,
     );
@@ -227,7 +231,7 @@ export function generateEvaluationMarkdownSummary(
       : '-';
 
     lines.push(
-      `| **${engineReport.engine}** | \`${engineReport.status}\` | \`${engineReport.requestedModel}\` | \`${engineReport.servedModel ?? '-'}\` | ${latencyDisplay} | ${tokensDisplay} | ${precisionDisplay} | ${recallDisplay} | ${f1Display} | ${wrongChangeDisplay} | ${missingReasonDisplay} | ${exactPreservationDisplay} | ${diagnosticsDisplay} |`,
+      `| **${engineReport.engine}** | \`${engineReport.status}\` | \`${engineReport.requestedModel}\` | \`${engineReport.servedModel ?? '-'}\` | ${latencyDisplay} | ${tokensDisplay} | ${precisionDisplay} | ${recallDisplay} | ${f1Display} | ${wrongChangeDisplay} | ${missingReasonDisplay} | ${agentFpDisplay} | ${agentLimitDisplay} | ${exactPreservationDisplay} | ${diagnosticsDisplay} |`,
     );
   }
 

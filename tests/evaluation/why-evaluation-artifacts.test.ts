@@ -83,6 +83,12 @@ const SAMPLE_ARTIFACT: WhyEvaluationArtifact = {
         wrongChangeAcceptanceRate: 0,
         missingReasonRejections: 1,
         missingReasonRejectionRate: 1,
+        agentNegativeCases: 0,
+        agentFalsePositives: 0,
+        agentFalsePositiveRate: 0,
+        agentLimitationCases: 0,
+        agentLimitationAcceptances: 0,
+        agentLimitationAcceptanceRate: 0,
         outcomes: [],
       },
       confidence: {
@@ -203,10 +209,10 @@ describe('generateEvaluationMarkdownSummary', () => {
     expect(markdown).toContain('- **Commit SHA**: `abc1234567890`');
     expect(markdown).toContain('- **Corpus Revision**: `rev123456789`');
     expect(markdown).toContain(
-      '| Engine | Status | Requested Model | Served Model | Latency (mean / p95) | Tokens (in / out) | Precision | Recall | F1 | Wrong-Change Accept | Missing-Reason Reject | Exact Preservation | Retries / Throttled |',
+      '| Engine | Status | Requested Model | Served Model | Latency (mean / p95) | Tokens (in / out) | Precision | Recall | F1 | Wrong-Change Accept | Missing-Reason Reject | Agent FP Accept | Agent Limit Accept | Exact Preservation | Retries / Throttled |',
     );
     expect(markdown).toContain(
-      '| **jev** | `completed` | `jev-latest` | `jev-1.0-prod` | 120 ms / 140 ms | 50 / 10 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 100.0% | 1 / yes |',
+      '| **jev** | `completed` | `jev-latest` | `jev-1.0-prod` | 120 ms / 140 ms | 50 / 10 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 0.0% | 0.0% | 100.0% | 1 / yes |',
     );
     expect(markdown).toContain(
       '| **openai** | `failed` | `gpt-4o` | `gpt-4o-2024-08-06` |',
@@ -230,6 +236,8 @@ describe('generateEvaluationMarkdownSummary', () => {
             ...SAMPLE_ARTIFACT.engines[0]!.metrics!,
             wrongChangeAcceptanceRate: null,
             missingReasonRejectionRate: null,
+            agentFalsePositiveRate: null,
+            agentLimitationAcceptanceRate: null,
           },
         },
       ],
@@ -237,7 +245,7 @@ describe('generateEvaluationMarkdownSummary', () => {
 
     const markdown = generateEvaluationMarkdownSummary(artifactWithNullRates);
     expect(markdown).toContain(
-      '| **jev** | `completed` | `jev-latest` | `jev-1.0-prod` | 120 ms / 140 ms | 50 / 10 | 100.0% | 100.0% | 100.0% | - | - | 100.0% | 1 / yes |',
+      '| **jev** | `completed` | `jev-latest` | `jev-1.0-prod` | 120 ms / 140 ms | 50 / 10 | 100.0% | 100.0% | 100.0% | - | - | - | - | 100.0% | 1 / yes |',
     );
   });
 });

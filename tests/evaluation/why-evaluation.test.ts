@@ -103,12 +103,23 @@ describe('evaluateWhySelections', () => {
       wrongChangeAcceptanceRate: null,
       missingReasonRejections: 0,
       missingReasonRejectionRate: null,
+      agentNegativeCases: 0,
+      agentFalsePositives: 0,
+      agentFalsePositiveRate: null,
+      agentLimitationCases: 0,
+      agentLimitationAcceptances: 0,
+      agentLimitationAcceptanceRate: null,
       outcomes: [
         {
           id: 'positive',
           prNumber: 1,
           familyId: undefined,
           counterfactualRole: undefined,
+          authorship: undefined,
+          origin: undefined,
+          archetype: undefined,
+          evaluationTier: undefined,
+          groundTruthContext: undefined,
           expectedSelectedCandidateIndex: 0,
           selected: true,
           selectedCandidateIndex: 0,
@@ -121,6 +132,11 @@ describe('evaluateWhySelections', () => {
           prNumber: 2,
           familyId: undefined,
           counterfactualRole: undefined,
+          authorship: undefined,
+          origin: undefined,
+          archetype: undefined,
+          evaluationTier: undefined,
+          groundTruthContext: undefined,
           expectedSelectedCandidateIndex: null,
           selected: true,
           selectedCandidateIndex: 0,
@@ -549,6 +565,252 @@ describe('evaluateWhySelections', () => {
     ]);
     expect(baselineMetrics.wrongChangeAcceptanceRate).toBeNull();
     expect(baselineMetrics.missingReasonRejectionRate).toBeNull();
+  });
+
+  test('tracks agent negative cases and agent false-positive rate (#239)', () => {
+    const agentCases: WhyEvaluationCase[] = [
+      {
+        id: 'agent-grounded-positive',
+        authorship: 'agent',
+        origin: 'synthetic',
+        archetype: 'grounded-intent',
+        item: {
+          prNumber: 301,
+          title: 'Add retry jitter',
+          itemText: 'Add retry jitter',
+          sectionTitle: 'Added',
+          trustScore: 9,
+          trustBucket: 'high',
+          requiresHighConfidence: false,
+          candidates: ['Avoid thundering herd on GitHub API retries.'],
+        },
+        expectedSelectedCandidateIndex: 0,
+      },
+      {
+        id: 'agent-unsupported-negative',
+        authorship: 'agent',
+        origin: 'synthetic',
+        archetype: 'unsupported-plausible',
+        item: {
+          prNumber: 302,
+          title: 'Refactor loop',
+          itemText: 'Refactor loop',
+          sectionTitle: 'Changed',
+          trustScore: 7,
+          trustBucket: 'medium',
+          requiresHighConfidence: false,
+          candidates: [
+            'Prevents critical memory leaks during peak garbage collection.',
+          ],
+        },
+        expectedSelectedCandidateIndex: null,
+      },
+      {
+        id: 'agent-impl-negative',
+        authorship: 'agent',
+        origin: 'synthetic',
+        archetype: 'implementation-only',
+        item: {
+          prNumber: 303,
+          title: 'Rename helper',
+          itemText: 'Rename helper',
+          sectionTitle: 'Changed',
+          trustScore: 7,
+          trustBucket: 'medium',
+          requiresHighConfidence: false,
+          candidates: ['Renames foo to bar across all modules.'],
+        },
+        expectedSelectedCandidateIndex: null,
+      },
+      {
+        id: 'human-negative',
+        authorship: 'human',
+        origin: 'real',
+        item: {
+          prNumber: 304,
+          title: 'Bump dep',
+          itemText: 'Bump dep',
+          sectionTitle: 'Chore',
+          trustScore: 5,
+          trustBucket: 'low',
+          requiresHighConfidence: false,
+          candidates: ['Bump dep to 1.2.3.'],
+        },
+        expectedSelectedCandidateIndex: null,
+      },
+    ];
+
+    // Scenario 1: Extractor correctly accepts grounded agent case, correctly rejects both agent negatives,
+    // and correctly rejects human negative.
+    const cleanRun = evaluateWhySelections(agentCases, [
+      {
+        prNumber: 301,
+        why: 'Avoid thundering herd on GitHub API retries.',
+        confidence: 'high',
+      },
+    ]);
+    expect(cleanRun.agentNegativeCases).toBe(2);
+    expect(cleanRun.agentFalsePositives).toBe(0);
+    expect(cleanRun.agentFalsePositiveRate).toBe(0); // 0 / 2 = 0%
+
+    // Scenario 2: Extractor incorrectly accepts one unsupported agent negative case (PR 302)
+    const noisyRun = evaluateWhySelections(agentCases, [
+      {
+        prNumber: 301,
+        why: 'Avoid thundering herd on GitHub API retries.',
+        confidence: 'high',
+      },
+      {
+        prNumber: 302,
+        why: 'Prevents critical memory leaks during peak garbage collection.',
+        confidence: 'high',
+      },
+    ]);
+    expect(noisyRun.agentNegativeCases).toBe(2);
+    expect(noisyRun.agentFalsePositives).toBe(1);
+    expect(noisyRun.agentFalsePositiveRate).toBe(0.5); // 1 / 2 = 50%
+
+    // Scenario 3: Extractor incorrectly accepts both agent negative cases
+    const worstRun = evaluateWhySelections(agentCases, [
+      {
+        prNumber: 302,
+        why: 'Prevents critical memory leaks during peak garbage collection.',
+        confidence: 'high',
+      },
+      {
+        prNumber: 303,
+        why: 'Renames foo to bar across all modules.',
+        confidence: 'high',
+      },
+    ]);
+    expect(worstRun.agentNegativeCases).toBe(2);
+    expect(worstRun.agentFalsePositives).toBe(2);
+    expect(worstRun.agentFalsePositiveRate).toBe(1.0); // 2 / 2 = 100%
+
+    // Scenario 4: No agent negative cases in corpus -> returns null
+    const noAgentNegativeCases: WhyEvaluationCase[] = [
+      agentCases[0]!,
+      agentCases[3]!,
+    ];
+    const noAgentMetrics = evaluateWhySelections(noAgentNegativeCases, [
+      {
+        prNumber: 301,
+        why: 'Avoid thundering herd on GitHub API retries.',
+        confidence: 'high',
+      },
+    ]);
+    expect(noAgentMetrics.agentNegativeCases).toBe(0);
+    expect(noAgentMetrics.agentFalsePositives).toBe(0);
+    expect(noAgentMetrics.agentFalsePositiveRate).toBeNull();
+  });
+
+  test('scopes agent false-positive rate to regression cases and tracks limitation acceptance separately', () => {
+    const corpusWithLimitations: WhyEvaluationCase[] = [
+      // Grounded agent positive (regression)
+      {
+        id: 'agent-pos',
+        authorship: 'agent',
+        evaluationTier: 'regression',
+        item: {
+          prNumber: 401,
+          title: 'Grounded',
+          itemText: 'Grounded',
+          sectionTitle: 'Added',
+          trustScore: 8,
+          trustBucket: 'high',
+          requiresHighConfidence: false,
+          candidates: ['Valid rationale.'],
+        },
+        expectedSelectedCandidateIndex: 0,
+      },
+      // Agent negative regression case (unsupported)
+      {
+        id: 'agent-neg-regression',
+        authorship: 'agent',
+        evaluationTier: 'regression',
+        item: {
+          prNumber: 402,
+          title: 'Unsupported',
+          itemText: 'Unsupported',
+          sectionTitle: 'Changed',
+          trustScore: 7,
+          trustBucket: 'medium',
+          requiresHighConfidence: false,
+          candidates: ['Plausible but unsupported rationale.'],
+        },
+        expectedSelectedCandidateIndex: null,
+      },
+      // Agent negative limitation case (exploratory)
+      {
+        id: 'agent-neg-limitation',
+        authorship: 'agent',
+        evaluationTier: 'limitation',
+        item: {
+          prNumber: 403,
+          title: 'Limitation case',
+          itemText: 'Limitation case',
+          sectionTitle: 'Changed',
+          trustScore: 7,
+          trustBucket: 'medium',
+          requiresHighConfidence: false,
+          candidates: ['Limitation candidate with ambiguous context.'],
+        },
+        expectedSelectedCandidateIndex: null,
+      },
+    ];
+
+    // Scenario A: Extractor accepts the limitation case (PR 403) and grounded case (PR 401),
+    // but correctly rejects the regression negative (PR 402).
+    const limitationAccepted = evaluateWhySelections(corpusWithLimitations, [
+      { prNumber: 401, why: 'Valid rationale.', confidence: 'high' },
+      {
+        prNumber: 403,
+        why: 'Limitation candidate with ambiguous context.',
+        confidence: 'high',
+      },
+    ]);
+
+    // Primary agent regression metrics must remain completely undistorted by PR 403
+    expect(limitationAccepted.agentNegativeCases).toBe(1);
+    expect(limitationAccepted.agentFalsePositives).toBe(0);
+    expect(limitationAccepted.agentFalsePositiveRate).toBe(0); // 0 / 1 = 0%
+
+    // Limitation metrics must accurately capture the exploratory acceptance
+    expect(limitationAccepted.agentLimitationCases).toBe(1);
+    expect(limitationAccepted.agentLimitationAcceptances).toBe(1);
+    expect(limitationAccepted.agentLimitationAcceptanceRate).toBe(1.0); // 1 / 1 = 100%
+
+    // Overall precision/recall still accounts for PR 403 as a false positive decision
+    expect(limitationAccepted.truePositives).toBe(1);
+    expect(limitationAccepted.falsePositives).toBe(1); // PR 403 accepted without expected candidate
+    expect(limitationAccepted.precision).toBe(0.5);
+
+    // Scenario B: Extractor rejects the limitation case as well
+    const limitationRejected = evaluateWhySelections(corpusWithLimitations, [
+      { prNumber: 401, why: 'Valid rationale.', confidence: 'high' },
+    ]);
+    expect(limitationRejected.agentNegativeCases).toBe(1);
+    expect(limitationRejected.agentFalsePositives).toBe(0);
+    expect(limitationRejected.agentFalsePositiveRate).toBe(0);
+    expect(limitationRejected.agentLimitationCases).toBe(1);
+    expect(limitationRejected.agentLimitationAcceptances).toBe(0);
+    expect(limitationRejected.agentLimitationAcceptanceRate).toBe(0);
+
+    // Scenario C: Extractor accepts regression negative (PR 402) but rejects limitation (PR 403)
+    const regressionAccepted = evaluateWhySelections(corpusWithLimitations, [
+      { prNumber: 401, why: 'Valid rationale.', confidence: 'high' },
+      {
+        prNumber: 402,
+        why: 'Plausible but unsupported rationale.',
+        confidence: 'high',
+      },
+    ]);
+    expect(regressionAccepted.agentNegativeCases).toBe(1);
+    expect(regressionAccepted.agentFalsePositives).toBe(1);
+    expect(regressionAccepted.agentFalsePositiveRate).toBe(1.0);
+    expect(regressionAccepted.agentLimitationCases).toBe(1);
+    expect(regressionAccepted.agentLimitationAcceptances).toBe(0);
+    expect(regressionAccepted.agentLimitationAcceptanceRate).toBe(0);
   });
 });
 
