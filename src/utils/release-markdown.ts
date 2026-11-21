@@ -79,6 +79,27 @@ export function collectReleaseH2Sections(body: string): RawReleaseSection[] {
 }
 
 /**
+ * Collect the lines that appear before the first H2 heading of a release body.
+ * @param body Full release body markdown.
+ * @returns Introductory lines, or an empty list when the body has no H2 heading.
+ */
+export function collectReleasePreamble(body: string): string[] {
+  const lines = body.split(/\r?\n/);
+  const preamble: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = normalizeReleaseHeadingLine(rawLine);
+    if (parseReleaseHeading(line)) return preamble;
+    preamble.push(line);
+  }
+
+  // WHY: A body without any H2 heading has no "before the first heading"
+  // region. Its text is not an introduction to structured release notes, and
+  // treating it as one would duplicate it next to the commit-derived entries.
+  return [];
+}
+
+/**
  * Demote headings inside a release section rendered below a changelog H3.
  * @param body Additional release-note section body.
  * @returns Body with nested headings adjusted while code fences remain intact.

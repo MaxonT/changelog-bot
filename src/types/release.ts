@@ -57,6 +57,8 @@ export type ParsedRelease = {
   items: ReleaseItem[];
   /** Full changelog URL when provided. */
   fullChangelog?: string;
+  /** Markdown that appeared before the first H2 heading of the release notes. */
+  intro?: string;
   /** Extra sections beyond the primary item list. */
   sections?: ReleaseSection[];
 };
@@ -88,6 +90,8 @@ export type ReleaseDraft = {
   excludedChanges: ExcludedReleaseChange[];
   /** Full changelog compare link URL, when provided. */
   fullChangelog?: string;
+  /** Introductory Markdown preserved from before the first release-note H2. */
+  intro?: string;
   /** Extra Markdown sections preserved from GitHub release notes. */
   sections?: ReleaseSection[];
   /** Independent source changes ledger captured before transforms. */

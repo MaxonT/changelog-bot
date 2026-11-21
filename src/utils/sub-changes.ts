@@ -21,14 +21,17 @@ export type PrSubChangeDescriptor = {
 
 // WHY: Restrict sub-change candidates to user-facing Conventional Commit types.
 // Chores, test additions, CI updates, and builds do not represent independent release notes.
+// Refactors are excluded too: by definition they neither fix a bug nor add a feature, so
+// inside a pull request they are refinements of its change (often made during review),
+// not evidence of a second user-facing change.
 const USER_FACING_COMMIT_TYPES: ReadonlySet<string> = new Set([
   'feat',
   'fix',
   'perf',
-  'refactor',
 ]);
 
 const GIT_FIXUP_RE = /^(?:fixup!|squash!|amend!)\s*/i;
+const CONVENTIONAL_TYPE_SCOPE_RE = /^([a-z]+)(?:\(([^)]*)\))?!?:/i;
 const MERGE_COMMIT_RE = /^merge\s+(?:branch|pull\s+request|tag)\b/i;
 
 // WHY: Commits addressing review comments, formatting, or minor typos are part of the
@@ -44,7 +47,7 @@ const PARTIAL_COMMIT_RE =
 /**
  * Inspect a change subject line to determine whether it represents a non-trivial user-facing change.
  * WHY: Commit discovery is strictly restricted to explicit user-facing Conventional Commit types
- * (feat, fix, perf, refactor) so non-conventional lines (e.g. "add tests", "rename helper") never
+ * (feat, fix, perf) so non-conventional lines (e.g. "add tests", "rename helper") never
  * cause false sub-change splits.
  * @param subject Git commit subject line.
  * @returns True if the change represents an eligible user-facing sub-change.
@@ -70,6 +73,18 @@ function isUserFacingChange(subject: string): boolean {
   }
 
   return true;
+}
+
+/**
+ * Build the Conventional Commit type/scope slot a commit subject belongs to.
+ * @param commit Commit whose subject has already passed isUserFacingChange.
+ * @returns Lower-cased `type(scope)` key, with an empty scope for unscoped subjects.
+ */
+function commitTypeScopeKey(commit: CommitLite): string {
+  const match = commit.subject.match(CONVENTIONAL_TYPE_SCOPE_RE);
+  const type = match?.[1]?.toLowerCase() ?? '';
+  const scope = match?.[2]?.trim().toLowerCase() ?? '';
+  return `${type}(${scope})`;
 }
 
 /**
@@ -133,6 +148,15 @@ export function detectPrSubChangesFromCommits(
 
   // Invariant: At least 2 distinct user-facing semantic subjects are required
   if (candidateCommits.length < 2) {
+    return null;
+  }
+
+  // WHY: Two commits of the same type in the same scope (or both unscoped) cannot be told
+  // apart from follow-up refinements of one change made during PR development, so the
+  // commit type alone is not evidence of independence. Expand only when every candidate
+  // sits in its own type/scope slot; otherwise keep the parent PR as a single change.
+  const typeScopeKeys = new Set(candidateCommits.map(commitTypeScopeKey));
+  if (typeScopeKeys.size !== candidateCommits.length) {
     return null;
   }
 

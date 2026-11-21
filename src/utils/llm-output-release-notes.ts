@@ -185,6 +185,7 @@ export async function buildOutputFromReleaseNotes(
     assignments: baselineAssignments,
     excludedChanges,
     fullChangelog: parsedRelease.fullChangelog,
+    intro: parsedRelease.intro,
     sections: parsedRelease.sections,
     sourceChanges,
   };
