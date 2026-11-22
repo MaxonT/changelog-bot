@@ -400,3 +400,313 @@ describe('formatIssueMetadataFallbackReason', () => {
     ).toThrow('Unsupported metadata lookup failure status: custom-status');
   });
 });
+
+describe('classifyGithubError retry-after extraction (alternate shapes)', () => {
+  const RATE_LIMIT_MESSAGE =
+    'GitHub API rate limit exceeded: Too Many Requests';
+
+  // Accepted shapes: each must classify as rate-limited with the parsed value.
+  test.each([
+    [
+      'direct numeric retryAfter',
+      { status: 429, message: 'Too Many Requests', retryAfter: 60 },
+      60,
+    ],
+    [
+      'direct numeric-string retryAfter',
+      { status: 429, message: 'Too Many Requests', retryAfter: '120' },
+      120,
+    ],
+    [
+      'direct snake_case retry_after number',
+      { status: 429, message: 'Too Many Requests', retry_after: 30 },
+      30,
+    ],
+    [
+      'direct snake_case retry_after string',
+      { status: 429, message: 'Too Many Requests', retry_after: '15' },
+      15,
+    ],
+    [
+      'body retry_after number',
+      { status: 429, message: 'Too Many Requests', body: { retry_after: 60 } },
+      60,
+    ],
+    [
+      'body retry_after string',
+      {
+        status: 429,
+        message: 'Too Many Requests',
+        body: { retry_after: '3600' },
+      },
+      3600,
+    ],
+    [
+      'body retryAfter number',
+      { status: 429, message: 'Too Many Requests', body: { retryAfter: 7 } },
+      7,
+    ],
+    [
+      'body retryAfter string',
+      { status: 429, message: 'Too Many Requests', body: { retryAfter: '90' } },
+      90,
+    ],
+    [
+      'zero direct retryAfter is valid',
+      { status: 429, message: 'Too Many Requests', retryAfter: 0 },
+      0,
+    ],
+    [
+      'zero body retry_after is valid',
+      { status: 429, message: 'Too Many Requests', body: { retry_after: 0 } },
+      0,
+    ],
+    [
+      'large value',
+      { status: 429, message: 'Too Many Requests', retryAfter: 86400 },
+      86400,
+    ],
+    [
+      'fractional value',
+      { status: 429, message: 'Too Many Requests', retryAfter: 1.5 },
+      1.5,
+    ],
+    [
+      'statusCode field instead of status',
+      { statusCode: 429, message: 'Too Many Requests', retryAfter: 12 },
+      12,
+    ],
+    [
+      '403 with rate-limit message and direct retryAfter',
+      { status: 403, message: 'API rate limit exceeded', retryAfter: 20 },
+      20,
+    ],
+    [
+      'non-HTTP error object with retryAfter',
+      Object.assign(new Error('rate limit exceeded'), { retryAfter: 33 }),
+      33,
+    ],
+  ])('accepts %s', (_name, errorCandidate, expectedRetryAfter) => {
+    const failure = classifyGithubError(errorCandidate, 'PR #42');
+    expect(failure.status).toBe('rate-limited');
+    expect(failure.retryAfter).toBe(expectedRetryAfter);
+  });
+
+  // Rejected shapes: still rate-limited, but no retry value is surfaced.
+  test.each([
+    [
+      'negative number',
+      { status: 429, message: 'Too Many Requests', retryAfter: -5 },
+    ],
+    [
+      'negative string',
+      { status: 429, message: 'Too Many Requests', retryAfter: '-1' },
+    ],
+    [
+      'NaN',
+      { status: 429, message: 'Too Many Requests', retryAfter: Number.NaN },
+    ],
+    [
+      'Infinity',
+      {
+        status: 429,
+        message: 'Too Many Requests',
+        retryAfter: Number.POSITIVE_INFINITY,
+      },
+    ],
+    [
+      'negative-infinity string',
+      { status: 429, message: 'Too Many Requests', retryAfter: '-Infinity' },
+    ],
+    [
+      'non-numeric string',
+      { status: 429, message: 'Too Many Requests', retryAfter: 'soon' },
+    ],
+    [
+      'boolean',
+      { status: 429, message: 'Too Many Requests', retryAfter: true },
+    ],
+    ['null', { status: 429, message: 'Too Many Requests', retryAfter: null }],
+    [
+      'object',
+      { status: 429, message: 'Too Many Requests', retryAfter: { seconds: 5 } },
+    ],
+    ['array', { status: 429, message: 'Too Many Requests', retryAfter: [5] }],
+    [
+      'invalid body retry_after',
+      { status: 429, message: 'Too Many Requests', body: { retry_after: -3 } },
+    ],
+    [
+      'invalid body retryAfter string',
+      {
+        status: 429,
+        message: 'Too Many Requests',
+        body: { retryAfter: 'later' },
+      },
+    ],
+  ])('rejects %s', (_name, errorCandidate) => {
+    const failure = classifyGithubError(errorCandidate, 'PR #42');
+    expect(failure.status).toBe('rate-limited');
+    expect(failure.retryAfter).toBeUndefined();
+  });
+
+  test('direct retryAfter wins over retry_after and body values', () => {
+    const failure = classifyGithubError(
+      {
+        status: 429,
+        message: 'Too Many Requests',
+        retryAfter: 5,
+        retry_after: 9,
+        body: { retry_after: 99 },
+      },
+      'PR #42',
+    );
+    expect(failure.retryAfter).toBe(5);
+  });
+
+  test('direct retry_after is used when retryAfter is absent', () => {
+    const failure = classifyGithubError(
+      {
+        status: 429,
+        message: 'Too Many Requests',
+        retry_after: 9,
+        body: { retry_after: 99 },
+      },
+      'PR #42',
+    );
+    expect(failure.retryAfter).toBe(9);
+  });
+
+  test('missing retry information leaves retryAfter undefined but keeps classification', () => {
+    const failure = classifyGithubError(
+      { status: 429, message: 'Too Many Requests' },
+      'PR #42',
+    );
+    expect(failure).toEqual({
+      status: 'rate-limited',
+      message: RATE_LIMIT_MESSAGE,
+      statusCode: 429,
+      retryAfter: undefined,
+    });
+  });
+
+  // Full-field assertions on the complete MetadataLookupFailure for each shape family.
+  test.each([
+    [
+      'direct retryAfter on 429',
+      { status: 429, message: 'Too Many Requests', retryAfter: 60 },
+      {
+        status: 'rate-limited',
+        message: RATE_LIMIT_MESSAGE,
+        statusCode: 429,
+        retryAfter: 60,
+      },
+    ],
+    [
+      'body retry_after string on 429',
+      {
+        status: 429,
+        message: 'Too Many Requests',
+        body: { retry_after: '120' },
+      },
+      {
+        status: 'rate-limited',
+        message: RATE_LIMIT_MESSAGE,
+        statusCode: 429,
+        retryAfter: 120,
+      },
+    ],
+    [
+      'direct retryAfter on 403 rate limit',
+      {
+        status: 403,
+        message: 'You have exceeded a secondary rate limit',
+        retryAfter: 45,
+      },
+      {
+        status: 'rate-limited',
+        message:
+          'GitHub API rate limit exceeded: You have exceeded a secondary rate limit',
+        statusCode: 403,
+        retryAfter: 45,
+      },
+    ],
+    [
+      'non-HTTP rate-limit error with retryAfter',
+      Object.assign(new Error('GitHub API rate limit exceeded'), {
+        retryAfter: 10,
+      }),
+      {
+        status: 'rate-limited',
+        message:
+          'GitHub API rate limit exceeded: GitHub API rate limit exceeded',
+        retryAfter: 10,
+      },
+    ],
+  ])('full failure object for %s', (_name, errorCandidate, expected) => {
+    expect(classifyGithubError(errorCandidate, 'PR #42')).toEqual(expected);
+  });
+
+  // Classification behavior is preserved: retry info only surfaces on rate-limited.
+  test('404 stays not-found and drops retry info', () => {
+    const failure = classifyGithubError(
+      { status: 404, message: 'Not Found', retryAfter: 60 },
+      'PR #42',
+    );
+    expect(failure).toEqual({
+      status: 'not-found',
+      message: 'PR #42 not found (404)',
+      statusCode: 404,
+    });
+  });
+
+  test('401 stays unauthenticated and drops retry info', () => {
+    const failure = classifyGithubError(
+      { status: 401, message: 'Bad credentials', retryAfter: 60 },
+      'PR #42',
+    );
+    expect(failure).toEqual({
+      status: 'unauthenticated',
+      message: 'GitHub token unauthenticated (401): Bad credentials',
+      statusCode: 401,
+    });
+  });
+
+  test('403 without rate-limit wording stays unauthenticated and drops retry info', () => {
+    const failure = classifyGithubError(
+      {
+        status: 403,
+        message: 'Resource not accessible',
+        body: { message: 'Forbidden' },
+        retryAfter: 60,
+      },
+      'PR #42',
+    );
+    expect(failure).toEqual({
+      status: 'unauthenticated',
+      message: 'GitHub API forbidden (403): Resource not accessible',
+      statusCode: 403,
+    });
+  });
+
+  test('other HTTP statuses stay network-error and drop retry info', () => {
+    const failure = classifyGithubError(
+      { status: 503, message: 'Service Unavailable', retryAfter: 60 },
+      'PR #42',
+    );
+    expect(failure).toEqual({
+      status: 'network-error',
+      message: 'HTTP 503: Service Unavailable',
+      statusCode: 503,
+    });
+  });
+
+  test('documented quirk: empty-string retry value parses as 0 (Number("") === 0)', () => {
+    const failure = classifyGithubError(
+      { status: 429, message: 'Too Many Requests', retryAfter: '' },
+      'PR #42',
+    );
+    expect(failure.status).toBe('rate-limited');
+    expect(failure.retryAfter).toBe(0);
+  });
+});
