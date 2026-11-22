@@ -56,6 +56,32 @@ function parseIssueNumberFromUrl(
   }
 }
 
+function extractIssueNumberFromClosingMatch(
+  match: RegExpExecArray,
+  repository: LinkedIssueRepository,
+): number | null {
+  const markdownUrl = match.groups?.markdownUrl;
+  if (markdownUrl) {
+    return parseIssueNumberFromUrl(markdownUrl, repository);
+  }
+
+  const issueUrl = match.groups?.issueUrl;
+  if (issueUrl) {
+    return parseIssueNumberFromUrl(issueUrl, repository);
+  }
+
+  const repoPrefix = match.groups?.repoPrefix;
+  if (repoPrefix) {
+    const expectedRepoPrefix =
+      `${repository.owner}/${repository.repo}`.toLowerCase();
+    if (repoPrefix.toLowerCase() !== expectedRepoPrefix) {
+      return null;
+    }
+  }
+
+  return parseIssueNumber(match.groups?.issueNumber);
+}
+
 // WHY: Exclude HTML comments (such as PR templates e.g. "<!-- Fixes #123 -->")
 // and code blocks/spans so non-authoritative references do not consume MAX_LINKED_ISSUES_PER_PR.
 function stripIgnoredIssueReferenceMarkup(body: string): string {
@@ -70,6 +96,7 @@ function stripIgnoredIssueReferenceMarkup(body: string): string {
  * Extract authoritative linked issue numbers referenced in a PR body.
  * WHY: Closing keywords (e.g. "Fixes #123") and direct issue URLs in the target repo
  * explicitly link changes to user-facing problems without speculative cross-repo noise.
+ * References are collected preserving encounter order across mixed reference syntaxes.
  * @param body Raw or normalized pull request description.
  * @param repository Target repository context.
  * @returns Array of unique issue numbers, capped at MAX_LINKED_ISSUES_PER_PR.
@@ -81,61 +108,36 @@ export function extractLinkedIssueNumbers(
   if (!body) return [];
 
   const cleanBody = stripIgnoredIssueReferenceMarkup(body);
-  const matchedIssueNumbers = new Set<number>();
+  const candidates: Array<{ index: number; issueNumber: number }> = [];
 
   // 1. Scan for closing keyword patterns (e.g. Fixes #123, closes owner/repo#456, resolves URL or [label](URL))
   for (const match of cleanBody.matchAll(CLOSING_KEYWORD_PATTERN)) {
-    const markdownUrl = match.groups?.markdownUrl;
-    if (markdownUrl) {
-      const issueNumber = parseIssueNumberFromUrl(markdownUrl, repository);
-      if (issueNumber !== null) {
-        matchedIssueNumbers.add(issueNumber);
-        if (matchedIssueNumbers.size >= MAX_LINKED_ISSUES_PER_PR) {
-          return Array.from(matchedIssueNumbers);
-        }
-      }
-      continue;
-    }
-
-    const issueUrl = match.groups?.issueUrl;
-    if (issueUrl) {
-      const issueNumber = parseIssueNumberFromUrl(issueUrl, repository);
-      if (issueNumber !== null) {
-        matchedIssueNumbers.add(issueNumber);
-        if (matchedIssueNumbers.size >= MAX_LINKED_ISSUES_PER_PR) {
-          return Array.from(matchedIssueNumbers);
-        }
-      }
-      continue;
-    }
-
-    const repoPrefix = match.groups?.repoPrefix;
-    if (repoPrefix) {
-      const expectedRepoPrefix =
-        `${repository.owner}/${repository.repo}`.toLowerCase();
-      if (repoPrefix.toLowerCase() !== expectedRepoPrefix) {
-        continue;
-      }
-    }
-
-    const issueNumber = parseIssueNumber(match.groups?.issueNumber);
+    if (match.index === undefined) continue;
+    const issueNumber = extractIssueNumberFromClosingMatch(match, repository);
     if (issueNumber !== null) {
-      matchedIssueNumbers.add(issueNumber);
-      if (matchedIssueNumbers.size >= MAX_LINKED_ISSUES_PER_PR) {
-        return Array.from(matchedIssueNumbers);
-      }
+      candidates.push({ index: match.index, issueNumber });
     }
   }
 
   // 2. Scan for direct current-repository issue URLs in the text
   for (const match of cleanBody.matchAll(DIRECT_ISSUE_URL_PATTERN)) {
+    if (match.index === undefined) continue;
     const issueUrl = match.groups?.issueUrl;
     const issueNumber = parseIssueNumberFromUrl(issueUrl, repository);
     if (issueNumber !== null) {
-      matchedIssueNumbers.add(issueNumber);
-      if (matchedIssueNumbers.size >= MAX_LINKED_ISSUES_PER_PR) {
-        return Array.from(matchedIssueNumbers);
-      }
+      candidates.push({ index: match.index, issueNumber });
+    }
+  }
+
+  // WHY: Preserve textual encounter order across mixed reference formats
+  // so the first distinct authoritative references in the PR description are selected.
+  candidates.sort((a, b) => a.index - b.index);
+
+  const matchedIssueNumbers = new Set<number>();
+  for (const candidate of candidates) {
+    matchedIssueNumbers.add(candidate.issueNumber);
+    if (matchedIssueNumbers.size >= MAX_LINKED_ISSUES_PER_PR) {
+      break;
     }
   }
 

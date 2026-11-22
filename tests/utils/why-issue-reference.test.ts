@@ -112,4 +112,82 @@ describe('why-issue-reference', () => {
     expect(result).toHaveLength(MAX_LINKED_ISSUES_PER_PR);
     expect(result).toEqual([701, 702]);
   });
+
+  describe('encounter order across reference formats', () => {
+    test('preserves encounter order when all references use closing keywords', () => {
+      const body = 'Closes #101, fixes #102, and resolves #103';
+      expect(extractLinkedIssueNumbers(body, repository)).toEqual([101, 102]);
+    });
+
+    test('preserves encounter order when all references use direct issue URLs', () => {
+      const body = [
+        'See https://github.com/necoz-oss/changelog-bot/issues/201',
+        'and https://github.com/necoz-oss/changelog-bot/issues/202',
+        'also https://github.com/necoz-oss/changelog-bot/issues/203',
+      ].join('\n');
+      expect(extractLinkedIssueNumbers(body, repository)).toEqual([201, 202]);
+    });
+
+    test('preserves encounter order when direct issue URL appears before closing keywords', () => {
+      const body = [
+        'Context described at https://github.com/necoz-oss/changelog-bot/issues/301.',
+        'Fixes #302.',
+        'Closes #303.',
+      ].join('\n');
+      expect(extractLinkedIssueNumbers(body, repository)).toEqual([301, 302]);
+    });
+
+    test('preserves encounter order when closing keyword appears before direct issue URL', () => {
+      const body = [
+        'Fixes #302.',
+        'Context described at https://github.com/necoz-oss/changelog-bot/issues/301.',
+        'Closes #303.',
+      ].join('\n');
+      expect(extractLinkedIssueNumbers(body, repository)).toEqual([302, 301]);
+    });
+
+    test('preserves encounter order with direct URLs and markdown closing links', () => {
+      const body = [
+        'See https://github.com/necoz-oss/changelog-bot/issues/401.',
+        'Resolves [#402](https://github.com/necoz-oss/changelog-bot/issues/402).',
+      ].join('\n');
+      expect(extractLinkedIssueNumbers(body, repository)).toEqual([401, 402]);
+    });
+
+    test('duplicate references across formats do not consume additional slots', () => {
+      const body = [
+        'See https://github.com/necoz-oss/changelog-bot/issues/501 for background.',
+        'Fixes #501.',
+        'Closes #502.',
+      ].join('\n');
+      expect(extractLinkedIssueNumbers(body, repository)).toEqual([501, 502]);
+    });
+
+    test('excludes external repositories and ignored markdown while preserving valid encounter order', () => {
+      const body = [
+        '<!-- Fixes #901 -->',
+        'https://github.com/other-org/other-repo/issues/902',
+        'Fixes other-org/other-repo#903',
+        'See https://github.com/necoz-oss/changelog-bot/issues/601.',
+        '`Fixes #904`',
+        '```sh',
+        'Fixes #905',
+        '```',
+        'Resolves #602.',
+        'Closes #603.',
+      ].join('\n');
+      expect(extractLinkedIssueNumbers(body, repository)).toEqual([601, 602]);
+    });
+
+    test('preserves deterministic behavior across repeated runs', () => {
+      const body = [
+        'Background: https://github.com/necoz-oss/changelog-bot/issues/701',
+        'Fixes #702',
+      ].join('\n');
+      const run1 = extractLinkedIssueNumbers(body, repository);
+      const run2 = extractLinkedIssueNumbers(body, repository);
+      expect(run1).toEqual([701, 702]);
+      expect(run2).toEqual(run1);
+    });
+  });
 });
